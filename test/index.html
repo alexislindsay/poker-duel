@@ -1,0 +1,98 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <title>Poker Evaluator Test Suite</title>
+  <style>
+    body { font-family: monospace; padding: 20px; background: #0f172a; color: #f8fafc; }
+    .pass { color: #4ade80; font-weight: bold; }
+    .fail { color: #f87171; font-weight: bold; }
+    .test-case { margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <h2>🃏 Poker Evaluator Automated Verification Tests</h2>
+  <div id="results">Running tests...</div>
+
+  <script src="../js/cards.js"></script>
+  <script src="../js/poker-evaluator.js"></script>
+  <script>
+    const results = document.getElementById('results');
+    results.innerHTML = '';
+
+    function assert(desc, actual, expected) {
+      const passed = JSON.stringify(actual) === JSON.stringify(expected);
+      const div = document.createElement('div');
+      div.className = `test-case ${passed ? 'pass' : 'fail'}`;
+      div.textContent = `${passed ? '✓ PASS' : '✗ FAIL'}: ${desc} (Got: ${JSON.stringify(actual)}, Expected: ${JSON.stringify(expected)})`;
+      results.appendChild(div);
+      return passed;
+    }
+
+    try {
+      // Test 1: 3-Card High Card on deal
+      const dealHighCard = [new Card('A', '♠'), new Card('Q', '♥'), new Card('7', '♦')];
+      const dealRes = PokerEvaluator.evaluateBestHand(dealHighCard);
+      assert('3-Card High Card (Ace High) level', dealRes.level, 1);
+      assert('3-Card High Card (Ace High) name', dealRes.name, 'High Card (Ace High)');
+
+      // Test 2: 3-Card Pair on deal
+      const dealPair = [new Card('Q', '♠'), new Card('Q', '♥'), new Card('7', '♦')];
+      const dealPairRes = PokerEvaluator.evaluateBestHand(dealPair);
+      assert('3-Card Pair of Queens level', dealPairRes.level, 2);
+      assert('3-Card Pair of Queens name', dealPairRes.name, 'Pair of Queens');
+
+      // Test 3: Royal Flush
+      const royalCards = [
+        new Card('A', '♠'), new Card('K', '♠'), new Card('Q', '♠'),
+        new Card('J', '♠'), new Card('T', '♠')
+      ];
+      const royalRes = PokerEvaluator.evaluate5Cards(royalCards);
+      assert('Royal Flush identification', royalRes.id, 'ROYAL_FLUSH');
+      assert('Royal Flush level 10', royalRes.level, 10);
+
+      // Test 4: Wheel Straight (A-2-3-4-5)
+      const wheelCards = [
+        new Card('A', '♥'), new Card('2', '♠'), new Card('3', '♦'),
+        new Card('4', '♣'), new Card('5', '♠')
+      ];
+      const wheelRes = PokerEvaluator.evaluate5Cards(wheelCards);
+      assert('Wheel Straight (A-2-3-4-5) identification', wheelRes.id, 'STRAIGHT');
+      assert('Wheel Straight level 5', wheelRes.level, 5);
+
+      // Test 5: Full House
+      const fhCards = [
+        new Card('K', '♥'), new Card('K', '♦'), new Card('K', '♠'),
+        new Card('8', '♣'), new Card('8', '♠')
+      ];
+      const fhRes = PokerEvaluator.evaluate5Cards(fhCards);
+      assert('Full House identification', fhRes.id, 'FULL_HOUSE');
+      assert('Full House level 7', fhRes.level, 7);
+
+      // Test 6: Best 5 out of 8 cards (3 hole + 5 community)
+      const pool8 = [
+        new Card('A', '♥'), new Card('A', '♦'), new Card('2', '♠'), // Hole
+        new Card('A', '♣'), new Card('K', '♠'), new Card('K', '♦'), new Card('7', '♣'), new Card('3', '♠') // Community
+      ];
+      const bestRes = PokerEvaluator.evaluateBestHand(pool8);
+      assert('Best 5 of 8 resolves Full House', bestRes.id, 'FULL_HOUSE');
+      assert('Best 5 of 8 level 7', bestRes.level, 7);
+
+      // Test 7: Comparing Flush vs Two Pair
+      const flushCards = [
+        new Card('2', '♥'), new Card('5', '♥'), new Card('8', '♥'),
+        new Card('J', '♥'), new Card('A', '♥')
+      ];
+      const twoPairCards = [
+        new Card('A', '♣'), new Card('A', '♦'), new Card('K', '♠'),
+        new Card('K', '♦'), new Card('Q', '♣')
+      ];
+      const flushEval = PokerEvaluator.evaluate5Cards(flushCards);
+      const tpEval = PokerEvaluator.evaluate5Cards(twoPairCards);
+      assert('Flush beats Two Pair in comparison', PokerEvaluator.compare(flushEval, tpEval), 1);
+
+    } catch (err) {
+      results.innerHTML += `<div class="fail">Error executing tests: ${err.message}</div>`;
+    }
+  </script>
+</body>
+</html>
