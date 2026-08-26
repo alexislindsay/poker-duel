@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Poker Duel - Messenger Style Card Game</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <!-- PeerJS for direct WebRTC zero-server multiplayer -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <!-- Canvas Confetti for winning celebrations -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+<body>
+  <!-- Header / Navigation -->
+  <header class="game-header">
+    <div class="logo-area">
+      <span style="font-size: 1.4rem;">🃏</span>
+      <h1 class="logo-title">POKER DUEL</h1>
+      <div id="room-badge" class="room-badge" style="display: none;">
+        <span class="status-dot"></span>
+        <span id="room-badge-text">Room: <strong>------</strong></span>
+      </div>
+    </div>
+
+    <div class="header-controls">
+      <button id="btn-share-room" class="icon-btn" title="Share Room Link" style="display: none;">🔗</button>
+      <button id="btn-toggle-sound" class="icon-btn" title="Toggle Sound">🔊</button>
+      <button id="btn-show-rules" class="icon-btn" title="Game Rules">❓</button>
+      <button id="btn-main-menu" class="icon-btn" title="Main Menu">⚙️</button>
+    </div>
+  </header>
+
+  <!-- Main Game Arena -->
+  <main class="game-container">
+    <div class="poker-table">
+      
+      <!-- Opponent Pod (Top) -->
+      <div class="player-pod opponent-pod" id="opponent-pod">
+        <div class="player-info-card" id="opponent-info-card">
+          <div class="player-avatar avatar-dad">
+            <span id="opponent-avatar-icon">👨</span>
+          </div>
+          <div class="player-details">
+            <span class="player-name" id="opponent-name">Dad</span>
+            <span class="player-chips" id="opponent-chips">💰 $1,000</span>
+          </div>
+        </div>
+
+        <div id="opponent-bet-badge" class="bet-badge" style="visibility: hidden;">Bet: $0</div>
+
+        <!-- Opponent 3 Hole Cards -->
+        <div class="cards-row" id="opponent-cards">
+          <!-- Rendered via JS -->
+        </div>
+      </div>
+
+      <!-- Center Table Area: 5 Community Slots & Pot -->
+      <div class="table-center-area">
+        <!-- Neutral House Dealer Emblem -->
+        <div class="house-dealer-badge">
+          <span>🏛️ House Dealer</span>
+        </div>
+
+        <!-- Pot Amount Display -->
+        <div class="pot-display">
+          <span class="pot-label">POT</span>
+          <span class="pot-amount" id="pot-amount">$0</span>
+        </div>
+
+        <!-- 5 Community Card Slots (Keep or Discard fills these) -->
+        <div class="community-cards-container">
+          <span class="slots-label">Community Cards (5 Slots)</span>
+          <div class="community-slots-row" id="community-slots">
+            <div class="card-slot" id="slot-0"><span class="slot-number">1</span></div>
+            <div class="card-slot" id="slot-1"><span class="slot-number">2</span></div>
+            <div class="card-slot" id="slot-2"><span class="slot-number">3</span></div>
+            <div class="card-slot" id="slot-3"><span class="slot-number">4</span></div>
+            <div class="card-slot" id="slot-4"><span class="slot-number">5</span></div>
+          </div>
+        </div>
+
+        <!-- Round / Blinds Info Ribbon -->
+        <div style="font-size: 0.75rem; color: rgba(255,255,255,0.6); letter-spacing: 0.5px;" id="round-blinds-info">
+          Round 1 • Blinds: $10 / $20
+        </div>
+
+        <!-- On-Table Showdown Banner -->
+        <div id="showdown-banner" class="showdown-banner" style="display: none;">
+          <div class="showdown-trophy">🏆</div>
+          <div class="showdown-title" id="showdown-banner-title">YOU WON $1,020!</div>
+          <div class="showdown-desc" id="showdown-banner-desc">Flush (Queen High)</div>
+          <button id="btn-showdown-next" class="btn-primary btn-pulse" style="margin-top: 6px; width: auto; padding: 8px 24px;">▶ NEXT HAND</button>
+        </div>
+      </div>
+
+      <!-- Active Draft Card Inspect Tray (Docked on Side, Never Obstructs Table Cards!) -->
+      <div id="draft-spotlight" class="draft-spotlight-tray" style="display: none;">
+        <div class="draft-header" id="draft-prompt">DRAFT TURN: KEEP OR DISCARD?</div>
+        <div class="draft-card-wrapper" id="draft-card-container">
+          <!-- Drawn Card rendered here -->
+        </div>
+        <div class="draft-actions" id="draft-action-buttons">
+          <button id="btn-draft-keep" class="btn-keep">✅ KEEP</button>
+          <button id="btn-draft-discard" class="btn-discard">🗑️ DISCARD</button>
+        </div>
+        <div id="draft-waiting-message" class="draft-waiting" style="display: none;">
+          <span class="status-dot"></span> <span id="draft-waiting-text">Opponent is deciding...</span>
+        </div>
+      </div>
+
+      <!-- Player Pod (Bottom - You) -->
+      <div class="player-pod player-pod-bottom" id="player-pod">
+        <div class="player-info-card active-turn" id="player-info-card">
+          <div class="player-avatar">
+            <span>🤠</span>
+          </div>
+          <div class="player-details">
+            <span class="player-name" id="player-name">You</span>
+            <span class="player-chips" id="player-chips">💰 $1,000</span>
+          </div>
+        </div>
+
+        <div id="player-bet-badge" class="bet-badge" style="visibility: hidden;">Bet: $0</div>
+
+        <!-- Player 3 Hole Cards -->
+        <div class="cards-row" id="player-cards">
+          <!-- Rendered via JS -->
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Real-Time Hand Strength Assist HUD -->
+    <section class="hand-assist-hud">
+      <div class="assist-header">
+        <div class="assist-title-area">
+          <span style="color: #fbbf24; font-weight: 800; font-size: 0.85rem;">⚡ YOUR BEST HAND:</span>
+        </div>
+        <div class="assist-hand-name" id="assist-hand-name">High Card (Ace High)</div>
+      </div>
+
+      <!-- 10-Tier Yellow Strength Level Meter -->
+      <div class="meter-segments-row" id="meter-segments">
+        <div class="meter-segment active" data-level="1"><div class="segment-bar"></div><span class="seg-label">High Card</span></div>
+        <div class="meter-segment" data-level="2"><div class="segment-bar"></div><span class="seg-label">Pair</span></div>
+        <div class="meter-segment" data-level="3"><div class="segment-bar"></div><span class="seg-label">2 Pair</span></div>
+        <div class="meter-segment" data-level="4"><div class="segment-bar"></div><span class="seg-label">3 of Kind</span></div>
+        <div class="meter-segment" data-level="5"><div class="segment-bar"></div><span class="seg-label">Straight</span></div>
+        <div class="meter-segment" data-level="6"><div class="segment-bar"></div><span class="seg-label">Flush</span></div>
+        <div class="meter-segment" data-level="7"><div class="segment-bar"></div><span class="seg-label">Full House</span></div>
+        <div class="meter-segment" data-level="8"><div class="segment-bar"></div><span class="seg-label">4 of Kind</span></div>
+        <div class="meter-segment" data-level="9"><div class="segment-bar"></div><span class="seg-label">Str Flush</span></div>
+        <div class="meter-segment" data-level="10"><div class="segment-bar"></div><span class="seg-label">Royal</span></div>
+      </div>
+    </section>
+
+    <!-- Action Controls Bar (Betting, Checking, Folding) -->
+    <section class="action-controls-bar" id="action-controls">
+      <div class="action-buttons-row">
+        <button id="btn-fold" class="btn-action btn-fold">FOLD</button>
+        <button id="btn-check-call" class="btn-action btn-check-call">CHECK</button>
+        <button id="btn-bet-raise" class="btn-action btn-bet-raise">BET $40</button>
+        <button id="btn-allin" class="btn-action btn-allin">ALL IN</button>
+      </div>
+
+      <!-- Bet Slider & Chips -->
+      <div class="bet-slider-container" id="bet-slider-row">
+        <input type="range" id="bet-slider" class="bet-slider" min="20" max="1000" step="10" value="40">
+        <div class="bet-presets">
+          <button class="preset-chip" data-val="min">Min</button>
+          <button class="preset-chip" data-val="2bb">2x BB</button>
+          <button class="preset-chip" data-val="3bb">3x BB</button>
+          <button class="preset-chip" data-val="pot">Pot</button>
+          <button class="preset-chip" data-val="max">Max</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= MODALS ================= -->
+
+  <!-- Welcome / Mode Selection Modal -->
+  <div id="modal-welcome" class="modal-overlay active">
+    <div class="modal-card">
+      <h2 class="modal-title">🃏 POKER DUEL</h2>
+      <p class="modal-desc">
+        Classic 2-player poker with 3 hole cards, 5 community spaces, Keep/Discard drafting, and real-time hand strength assist!
+      </p>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <button id="btn-start-online" class="btn-primary">🌐 Play Online with Dad</button>
+        <button id="btn-start-ai" class="btn-secondary" style="margin-top: 0;">🤖 Practice vs DadBot (AI)</button>
+        <button id="btn-start-pass" class="btn-secondary">👥 Pass & Play (Local 2-Player)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Online Room Host/Join Modal -->
+  <div id="modal-online-room" class="modal-overlay">
+    <div class="modal-card">
+      <button class="modal-close-btn" id="btn-close-room-modal">✕</button>
+      <h2 class="modal-title" id="room-modal-title">🌐 Online Multiplayer</h2>
+      
+      <div id="room-create-section">
+        <p class="modal-desc">Share this room link or code with your dad to play together instantly:</p>
+        <div class="room-share-box">
+          <span class="room-code-display" id="display-room-code">------</span>
+          <button id="btn-copy-code" class="preset-chip" style="padding: 6px 12px;">📋 Copy Link</button>
+        </div>
+        <div style="text-align: center; margin-bottom: 15px; color: #94a3b8; font-size: 0.85rem;" id="room-status-message">
+          ⏳ Waiting for your dad to join...
+        </div>
+      </div>
+
+      <div id="room-join-section" style="margin-top: 15px; border-top: 1px solid #334155; padding-top: 15px;">
+        <p class="modal-desc" style="margin-bottom: 8px;">Or enter a Room Code to join:</p>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="input-join-code" placeholder="Enter 6-char Code" maxlength="6" style="flex: 1; padding: 10px; background: #1e293b; border: 1px solid #475569; border-radius: 8px; color: white; font-weight: 700; text-transform: uppercase; font-size: 1.1rem; text-align: center;">
+          <button id="btn-confirm-join" class="btn-primary" style="width: auto; padding: 0 18px;">Join</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Showdown / Round Summary Modal -->
+  <div id="modal-round-summary" class="modal-overlay">
+    <div class="modal-card" style="text-align: center;">
+      <h2 class="modal-title" id="round-winner-title">🏆 YOU WON THE POT!</h2>
+      <p class="modal-desc" id="round-winner-desc" style="font-size: 1.05rem; color: #facc15; font-weight: 700;">
+        You won $240 with a Flush, Ace High!
+      </p>
+
+      <div style="display: flex; justify-content: space-around; margin: 20px 0; background: #1e293b; padding: 14px; border-radius: 12px;">
+        <div>
+          <div style="font-size: 0.8rem; color: #94a3b8;" id="summary-p0-name">Your Hand</div>
+          <div style="font-weight: 800; color: #fef08a;" id="summary-p0-eval">Flush</div>
+        </div>
+        <div style="border-left: 1px solid #475569;"></div>
+        <div>
+          <div style="font-size: 0.8rem; color: #94a3b8;" id="summary-p1-name">Dad's Hand</div>
+          <div style="font-weight: 800; color: #94a3b8;" id="summary-p1-eval">Two Pair</div>
+        </div>
+      </div>
+
+      <button id="btn-next-round" class="btn-primary">▶ Next Hand</button>
+    </div>
+  </div>
+
+  <!-- Champion / Game Over Duel Victory Modal -->
+  <div id="modal-game-over" class="modal-overlay">
+    <div class="modal-card" style="text-align: center; border-color: #fbbf24; box-shadow: 0 0 40px rgba(251, 191, 36, 0.5);">
+      <div style="font-size: 2.8rem; margin-bottom: 4px;">👑</div>
+      <h2 class="modal-title" id="game-over-title" style="font-size: 1.4rem;">DAD WON THE DUEL!</h2>
+      <p class="modal-desc" id="game-over-desc" style="font-size: 0.95rem; color: #fef08a; font-weight: 700; margin-bottom: 14px;">
+        All $2,000 chips collected!
+      </p>
+
+      <div style="margin: 12px 0 18px; background: #1e293b; padding: 12px; border-radius: 12px; display: flex; justify-content: space-around;">
+        <div>
+          <div style="font-size: 0.72rem; color: #94a3b8;">Total Rounds</div>
+          <div style="font-weight: 800; font-size: 1.1rem; color: #f8fafc;" id="game-over-rounds">1</div>
+        </div>
+        <div style="border-left: 1px solid #475569;"></div>
+        <div>
+          <div style="font-size: 0.72rem; color: #94a3b8;">Champion Stack</div>
+          <div style="font-weight: 800; font-size: 1.1rem; color: #facc15;">$2,000</div>
+        </div>
+      </div>
+
+      <button id="btn-rematch" class="btn-primary btn-pulse" style="font-size: 1rem; padding: 12px 20px;">🔄 Play Rematch (New Duel)</button>
+      <button id="btn-game-over-menu" class="btn-secondary" style="margin-top: 8px;">🏠 Main Menu</button>
+    </div>
+  </div>
+
+  <!-- Game Rules & Assist Info Modal -->
+  <div id="modal-rules" class="modal-overlay">
+    <div class="modal-card">
+      <button class="modal-close-btn" id="btn-close-rules">✕</button>
+      <h2 class="modal-title">📖 How to Play Poker Duel</h2>
+      <div style="color: #cbd5e1; font-size: 0.88rem; line-height: 1.5; display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto; padding-right: 6px;">
+        <p><strong>1. Starting Chips & Blinds:</strong> Both players start with <strong>$1,000</strong>. Blinds escalate every 3 rounds.</p>
+        <p><strong>2. Hole Cards:</strong> Each player gets <strong>3 private cards</strong>.</p>
+        <p><strong>3. Keep / Discard Drafting:</strong> Cards are drawn from the deck one at a time. The active player chooses to <strong>KEEP</strong> (locks card into 1 of the 5 community spaces) or <strong>DISCARD</strong>. Drafting alternates until all 5 spaces are filled!</p>
+        <p><strong>4. Yellow Hand Assist Bar:</strong> The yellow HUD meter dynamically evaluates your best 5-card poker combination in real-time as cards are dealt or kept.</p>
+        <p><strong>5. Showdown:</strong> Best 5 cards out of your 3 hole cards + 5 table cards wins the pot!</p>
+      </div>
+      <button id="btn-dismiss-rules" class="btn-secondary" style="margin-top: 16px;">Got It!</button>
+    </div>
+  </div>
+
+  <!-- Floating Toast Notifications -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Canvas for celebration confetti -->
+  <canvas id="confetti-canvas"></canvas>
+
+  <!-- Load JavaScript Modules -->
+  <script src="js/cards.js"></script>
+  <script src="js/poker-evaluator.js"></script>
+  <script src="js/sound.js"></script>
+  <script src="js/ai-player.js"></script>
+  <script src="js/network.js"></script>
+  <script src="js/game-engine.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
