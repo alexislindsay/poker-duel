@@ -575,13 +575,30 @@ class PokerDuelApp {
 
   /* ---------------- UI Rendering ---------------- */
 
-  renderGameState(state) {
-    // Hide showdown banner if a new round is in progress
-    if (this.showdownBanner && state.phase !== GAME_PHASES.SHOWDOWN && state.phase !== GAME_PHASES.ROUND_OVER) {
-      this.showdownBanner.style.display = 'none';
+    // 1. Showdown / Round Over / Game Over Banner
+    if (this.showdownBanner) {
+      if (state.phase === GAME_PHASES.GAME_OVER) {
+        const isLocalWinner = (state.gameWinner && (state.gameWinner.id === this.localPlayerId || state.gameWinner.name === localPlayer.name));
+        const winnerName = state.gameWinner ? state.gameWinner.name : 'Champion';
+        this.showdownBannerTitle.textContent = isLocalWinner ? '👑 YOU WON THE DUEL!' : `👑 ${winnerName.toUpperCase()} WON THE DUEL!`;
+        this.showdownBannerDesc.textContent = state.winReason || 'All $2,000 in chips collected!';
+        this.btnShowdownNext.textContent = '🔄 PLAY REMATCH';
+        this.showdownBanner.style.display = 'flex';
+      } else if (state.phase === GAME_PHASES.ROUND_OVER || state.phase === GAME_PHASES.SHOWDOWN) {
+        const isLocalWinner = (state.roundWinner && (state.roundWinner.id === this.localPlayerId || state.roundWinner.name === localPlayer.name));
+        const wonAmt = state.potWonAmount || state.pot;
+        const winnerName = state.roundWinner ? (state.roundWinner.name ? state.roundWinner.name.toUpperCase() : 'ROUND OVER') : 'ROUND OVER';
+        const titleText = isLocalWinner ? `YOU WON $${wonAmt}!` : `${winnerName} WON $${wonAmt}!`;
+        this.showdownBannerTitle.textContent = isLocalWinner ? `🏆 ${titleText}` : `👑 ${titleText}`;
+        this.showdownBannerDesc.textContent = state.winReason || '';
+        this.btnShowdownNext.textContent = '▶ NEXT HAND';
+        this.showdownBanner.style.display = 'flex';
+      } else {
+        this.showdownBanner.style.display = 'none';
+      }
     }
 
-    // 1. Pot & Blinds
+    // 2. Pot & Blinds
     this.potDisplay.textContent = `$${state.pot}`;
     this.roundBlindsInfo.textContent = `Round ${state.roundNumber} • Blinds: $${state.blindLevel.small} / $${state.blindLevel.big}`;
 
