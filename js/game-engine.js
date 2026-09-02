@@ -192,7 +192,9 @@ class GameEngine {
 
     switch (action) {
       case 'check':
-        if (callAmount > 0) return false; // cannot check if bet uncalled
+        if (callAmount > 0) {
+          return this.handleBettingAction(playerId, 'call');
+        }
         this.betActedSet.add(playerId);
         this.lastAction = { playerId, action: 'check', text: `${player.name} checks` };
         this.onEvent({ type: 'ACTION_CHECK', playerId });
