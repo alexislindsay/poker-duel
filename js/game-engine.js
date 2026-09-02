@@ -385,6 +385,19 @@ class GameEngine {
     const winner = this.players[winnerId];
     const loser = this.players[1 - winnerId];
     
+    winner.chips += this.pot;
+    this.potWonAmount = this.pot;
+    this.roundWinner = winner;
+    this.winReason = `${loser.name} folded. ${winner.name} wins $${this.pot}!`;
+
+    this.onEvent({ 
+      type: 'HAND_WON_FOLD', 
+      winnerId, 
+      amount: this.potWonAmount,
+      reason: this.winReason,
+      winner: winner
+    });
+
     // Check if duel is over (someone reached $0)
     if (this.players[0].chips <= 0 || this.players[1].chips <= 0) {
       this.phase = GAME_PHASES.GAME_OVER;
