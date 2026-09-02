@@ -616,7 +616,6 @@ class PokerDuelApp {
     this.renderHoleCards(state);
 
     // 5. Render 10-Tier Yellow Hand Strength Assist HUD
-    const localPlayer = state.players[this.localPlayerId];
     const activeEval = localPlayer.handEval;
     if (activeEval) {
       this.assistHandName.textContent = activeEval.name;
