@@ -343,11 +343,14 @@ class PokerDuelApp {
     this.roomBadge.style.display = 'flex';
     this.roomBadgeText.innerHTML = `Room: <strong>${roomId}</strong>`;
     this.btnShareRoom.style.display = 'flex';
-    this.showToast('Connected to opponent!');
+    this.showToast('✅ Connected to opponent!');
 
     if (isHost) {
       this.engine.resetGame();
       this.engine.startNewRound();
+      this.network.send({ type: 'SYNC_STATE', state: this.engine.getSanitizedStateForPlayer(1) });
+    } else {
+      this.network.send({ type: 'REQUEST_SYNC' });
     }
   }
 
@@ -366,6 +369,8 @@ class PokerDuelApp {
         this.engine.startNewRound();
       } else if (msg.type === 'REQUEST_REMATCH') {
         this.engine.startNewDuel();
+      } else if (msg.type === 'REQUEST_SYNC') {
+        this.network.send({ type: 'SYNC_STATE', state: this.engine.getSanitizedStateForPlayer(1) });
       }
     } else {
       // Guest receives state sync from host
@@ -570,21 +575,25 @@ class PokerDuelApp {
     this.potDisplay.textContent = `$${state.pot}`;
     this.roundBlindsInfo.textContent = `Round ${state.roundNumber} • Blinds: $${state.blindLevel.small} / $${state.blindLevel.big}`;
 
-    // 2. Player info
-    const p0 = state.players[0];
-    const p1 = state.players[1];
+    // 2. Player info (Bottom Pod = Local Player, Top Pod = Opponent)
+    const localPlayer = state.players[this.localPlayerId];
+    const opponentPlayer = state.players[1 - this.localPlayerId];
 
-    this.p0Chips.textContent = `💰 $${p0.chips}`;
-    this.p1Chips.textContent = `💰 $${p1.chips}`;
+    this.p0Chips.textContent = `💰 $${localPlayer.chips}`;
+    this.p1Chips.textContent = `💰 $${opponentPlayer.chips}`;
+    this.p0Name.textContent = localPlayer.name;
+    this.p1Name.textContent = opponentPlayer.name;
 
-    this.p0BetBadge.style.visibility = p0.currentRoundBet > 0 ? 'visible' : 'hidden';
-    this.p0BetBadge.textContent = `Bet: $${p0.currentRoundBet}`;
-    this.p1BetBadge.style.visibility = p1.currentRoundBet > 0 ? 'visible' : 'hidden';
-    this.p1BetBadge.textContent = `Bet: $${p1.currentRoundBet}`;
+    this.p0BetBadge.style.visibility = localPlayer.currentRoundBet > 0 ? 'visible' : 'hidden';
+    this.p0BetBadge.textContent = `Bet: $${localPlayer.currentRoundBet}`;
+    this.p1BetBadge.style.visibility = opponentPlayer.currentRoundBet > 0 ? 'visible' : 'hidden';
+    this.p1BetBadge.textContent = `Bet: $${opponentPlayer.currentRoundBet}`;
 
     // Active Pod Glow
-    this.p0Pod.classList.toggle('active-turn', state.activeTurnPlayer === 0 || state.activeDraftPlayer === 0);
-    this.p1Pod.classList.toggle('active-turn', state.activeTurnPlayer === 1 || state.activeDraftPlayer === 1);
+    const isMyTurn = (state.activeTurnPlayer === this.localPlayerId) || (state.activeDraftPlayer === this.localPlayerId);
+    const isOpponentTurn = (state.activeTurnPlayer === (1 - this.localPlayerId)) || (state.activeDraftPlayer === (1 - this.localPlayerId));
+    this.p0Pod.classList.toggle('active-turn', isMyTurn);
+    this.p1Pod.classList.toggle('active-turn', isOpponentTurn);
 
     // 3. Render Community Slots (5 spaces)
     for (let i = 0; i < 5; i++) {
@@ -594,7 +603,7 @@ class PokerDuelApp {
         slotEl.classList.add('filled');
         const cardObj = state.communityCards[i];
         // Check if highlighted in best 5
-        const isBestCard = p0.handEval && p0.handEval.best5Cards && p0.handEval.best5Cards.some(c => c && c.id === cardObj.id);
+        const isBestCard = localPlayer.handEval && localPlayer.handEval.best5Cards && localPlayer.handEval.best5Cards.some(c => c && c.id === cardObj.id);
         const cardEl = renderCardElement(cardObj, { isHighlighted: isBestCard, cardSize: 'medium' });
         slotEl.appendChild(cardEl);
       } else {
