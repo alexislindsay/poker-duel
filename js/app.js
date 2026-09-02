@@ -5,6 +5,7 @@ class PokerDuelApp {
     this.mode = 'AI'; // 'AI', 'ONLINE', 'PASS_PLAY'
     this.localPlayerId = 0; // 0 = Player 1 / Host, 1 = Player 2 / Guest
     this.isHost = true;
+    this.latestState = null;
     
     this.engine = new GameEngine({
       onStateChange: (state) => {
@@ -32,6 +33,13 @@ class PokerDuelApp {
     this.initDOM();
     this.bindEvents();
     this.checkUrlParams();
+  }
+
+  getCurrentState() {
+    if (this.mode === 'ONLINE' && !this.isHost && this.latestState) {
+      return this.latestState;
+    }
+    return this.engine.getStateSnapshot();
   }
 
   initDOM() {
@@ -151,12 +159,13 @@ class PokerDuelApp {
     // Betting Action Buttons
     this.btnFold.addEventListener('click', () => this.handleAction('fold'));
     this.btnCheckCall.addEventListener('click', () => {
-      const state = this.engine.getStateSnapshot();
-      const callAmount = state.currentBet - state.players[this.localPlayerId].currentRoundBet;
+      const state = this.getCurrentState();
+      const localPlayer = state.players[this.localPlayerId];
+      const callAmount = state.currentBet - localPlayer.currentRoundBet;
       if (callAmount <= 0) {
         this.handleAction('check');
       } else {
-        this.handleAction('call');
+        this.handleAction('call', callAmount);
       }
     });
 
@@ -166,8 +175,9 @@ class PokerDuelApp {
     });
 
     this.btnAllIn.addEventListener('click', () => {
-      const player = this.engine.players[this.localPlayerId];
-      const maxAmount = player.chips + player.currentRoundBet;
+      const state = this.getCurrentState();
+      const localPlayer = state.players[this.localPlayerId];
+      const maxAmount = localPlayer.chips + localPlayer.currentRoundBet;
       this.handleAction('raise', maxAmount);
     });
 
@@ -179,10 +189,10 @@ class PokerDuelApp {
     document.querySelectorAll('.preset-chip').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const valType = e.target.dataset.val;
-        const player = this.engine.players[this.localPlayerId];
-        const state = this.engine.getStateSnapshot();
-        const min = state.minRaise || state.currentBigBlind;
-        const max = player.chips + player.currentRoundBet;
+        const state = this.getCurrentState();
+        const localPlayer = state.players[this.localPlayerId];
+        const min = Math.max(state.minRaise || state.currentBigBlind, state.currentBet + state.currentBigBlind);
+        const max = localPlayer.chips + localPlayer.currentRoundBet;
 
         let target = min;
         if (valType === 'min') target = min;
@@ -385,7 +395,7 @@ class PokerDuelApp {
   }
 
   applySyncedState(state) {
-    // Update local state snapshot for guest UI
+    this.latestState = state;
     this.renderGameState(state);
   }
 
@@ -717,7 +727,7 @@ class PokerDuelApp {
 
   updateBetRaiseButtonText() {
     const val = parseInt(this.betSlider.value, 10);
-    const state = this.engine.getStateSnapshot();
+    const state = this.getCurrentState();
     const actionName = state.currentBet > 0 ? 'RAISE TO' : 'BET';
     this.btnBetRaise.textContent = `${actionName} $${val}`;
   }
