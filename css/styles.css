@@ -1,4 +1,4 @@
-﻿/* css/styles.css - Poker Duel Mobile & Desktop Optimized Styling */
+/* css/styles.css - Poker Duel Mobile & Desktop Optimized Styling */
 
 :root {
   --bg-felt: #0d3824;
@@ -473,42 +473,52 @@ html, body {
   100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
 }
 
-/* Active Card Draft Dock */
+/* Active Card Draft Dock (Positioned in Dead Space Above Community Cards) */
 .draft-spotlight-tray {
   position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: rgba(15, 23, 42, 0.97);
+  top: 15%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.96);
   border: 2px solid #fbbf24;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.85), 0 0 16px rgba(251, 191, 36, 0.45);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.85), 0 0 16px rgba(251, 191, 36, 0.5);
   border-radius: 14px;
-  padding: 8px 10px;
+  padding: 8px 14px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 4px;
-  z-index: 110;
-  max-width: 170px;
-  animation: slideInLeft 0.2s ease-out;
+  justify-content: center;
+  gap: 12px;
+  z-index: 120;
+  backdrop-filter: blur(8px);
+  animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
-@keyframes slideInLeft {
-  0% { transform: translate(-20px, -50%) scale(0.85); opacity: 0; }
-  100% { transform: translate(0, -50%) scale(1); opacity: 1; }
+.draft-card-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.draft-info-side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
 }
 
 .draft-header {
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   font-weight: 800;
   color: #fde047;
   text-align: center;
-  line-height: 1.1;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .draft-actions {
   display: flex;
-  gap: 4px;
+  gap: 8px;
   width: 100%;
 }
 
@@ -517,11 +527,18 @@ html, body {
   background: linear-gradient(135deg, #10b981, #059669);
   color: white;
   font-weight: 800;
-  font-size: 0.8rem;
-  padding: 7px 6px;
+  font-size: 0.85rem;
+  padding: 8px 14px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
+  box-shadow: 0 3px 8px rgba(16, 185, 129, 0.4);
+  transition: transform 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-keep:hover, .btn-keep:active {
+  transform: scale(1.05);
 }
 
 .btn-discard {
@@ -529,20 +546,27 @@ html, body {
   background: linear-gradient(135deg, #ef4444, #dc2626);
   color: white;
   font-weight: 800;
-  font-size: 0.8rem;
-  padding: 7px 6px;
+  font-size: 0.85rem;
+  padding: 8px 14px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
+  box-shadow: 0 3px 8px rgba(239, 68, 68, 0.4);
+  transition: transform 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-discard:hover, .btn-discard:active {
+  transform: scale(1.05);
 }
 
 .draft-waiting {
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   color: #94a3b8;
   font-style: italic;
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 
 /* =========================================================
@@ -853,16 +877,15 @@ html, body {
   }
 
   .player-name { font-size: 0.75rem; }
-  .player-chips { font-size: 0.72rem; }
-
   .draft-spotlight-tray {
-    left: 6px;
-    max-width: 140px;
-    padding: 6px 8px;
+    top: 13%;
+    padding: 6px 10px;
+    gap: 8px;
+    max-width: 90%;
   }
 
-  .draft-header { font-size: 0.65rem; }
-  .btn-keep, .btn-discard { font-size: 0.72rem; padding: 6px 4px; }
+  .draft-header { font-size: 0.72rem; }
+  .btn-keep, .btn-discard { font-size: 0.76rem; padding: 6px 10px; }
 
   .seg-label { font-size: 0.46rem; }
 
