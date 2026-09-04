@@ -93,18 +93,20 @@
         </div>
       </div>
 
-      <!-- Active Draft Card Inspect Tray (Docked on Side, Never Obstructs Table Cards!) -->
+      <!-- Active Draft Card Inspect Tray (Positioned in Open Space, Never Obstructs Table Cards!) -->
       <div id="draft-spotlight" class="draft-spotlight-tray" style="display: none;">
-        <div class="draft-header" id="draft-prompt">DRAFT TURN: KEEP OR DISCARD?</div>
         <div class="draft-card-wrapper" id="draft-card-container">
           <!-- Drawn Card rendered here -->
         </div>
-        <div class="draft-actions" id="draft-action-buttons">
-          <button id="btn-draft-keep" class="btn-keep">✅ KEEP</button>
-          <button id="btn-draft-discard" class="btn-discard">🗑️ DISCARD</button>
-        </div>
-        <div id="draft-waiting-message" class="draft-waiting" style="display: none;">
-          <span class="status-dot"></span> <span id="draft-waiting-text">Opponent is deciding...</span>
+        <div class="draft-info-side">
+          <div class="draft-header" id="draft-prompt">DRAFT TURN: KEEP OR DISCARD?</div>
+          <div class="draft-actions" id="draft-action-buttons">
+            <button id="btn-draft-keep" class="btn-keep">✅ KEEP</button>
+            <button id="btn-draft-discard" class="btn-discard">🗑️ DISCARD</button>
+          </div>
+          <div id="draft-waiting-message" class="draft-waiting" style="display: none;">
+            <span class="status-dot"></span> <span id="draft-waiting-text">Opponent is deciding...</span>
+          </div>
         </div>
       </div>
 
