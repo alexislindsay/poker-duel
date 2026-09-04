@@ -39,6 +39,18 @@ class NetworkManager {
           return reject(new Error('PeerJS library is not loaded.'));
         }
 
+        if (this.peer) {
+          try { this.peer.destroy(); } catch (e) {}
+          this.peer = null;
+        }
+
+        let isResolved = false;
+        const timeout = setTimeout(() => {
+          if (!isResolved) {
+            console.warn('[P2P] Peer creation taking longer than expected...');
+          }
+        }, 8000);
+
         this.peer = new Peer(peerId, {
           debug: 1,
           config: {
@@ -65,6 +77,8 @@ class NetworkManager {
         });
 
         this.peer.on('open', (id) => {
+          isResolved = true;
+          clearTimeout(timeout);
           console.log(`[P2P] Room created with code: ${this.roomId} (Peer ID: ${id})`);
           resolve(this.roomId);
         });
