@@ -575,6 +575,7 @@ class PokerDuelApp {
 
   /* ---------------- UI Rendering ---------------- */
 
+  renderGameState(state) {
     // 1. Showdown / Round Over / Game Over Banner
     if (this.showdownBanner) {
       if (state.phase === GAME_PHASES.GAME_OVER) {
