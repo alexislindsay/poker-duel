@@ -333,8 +333,8 @@ class GameEngine {
       this.currentDrawnCard = null;
       this.updateEvaluations();
 
-      // A card was KEPT! Start a new BETTING ROUND on this new card!
-      this.startCardBettingRound();
+      // A card was KEPT! The player who kept the card ACTS FIRST in this betting round!
+      this.startCardBettingRound(playerId);
     } else {
       // DISCARD: Card is burned face-down. Next player draws!
       this.discardPile.push(card);
@@ -353,14 +353,14 @@ class GameEngine {
   }
 
   // Start betting round after a card is kept into the community spaces
-  startCardBettingRound() {
+  startCardBettingRound(keptPlayerId = null) {
     // If either player has 0 chips left (All-In), betting is completed
     if (this.players[0].isAllIn || this.players[1].isAllIn || this.players[0].chips === 0 || this.players[1].chips === 0) {
       if (this.communityCards.length >= 5) {
         this.resolveShowdown();
       } else {
         this.phase = GAME_PHASES.DRAFTING;
-        this.activeDraftPlayer = 1 - this.activeDraftPlayer;
+        this.activeDraftPlayer = (typeof keptPlayerId === 'number') ? (1 - keptPlayerId) : (1 - this.activeDraftPlayer);
         this.drawNextDraftCard();
       }
       return;
@@ -369,14 +369,15 @@ class GameEngine {
     this.phase = GAME_PHASES.CARD_BETTING;
     this.resetRoundBets();
 
-    // Non-dealer acts first in post-deal betting rounds
-    this.activeTurnPlayer = 1 - this.dealerIndex;
+    // The player who drafted and chose to KEEP the card bets/acts FIRST!
+    this.activeTurnPlayer = (typeof keptPlayerId === 'number') ? keptPlayerId : (1 - this.dealerIndex);
 
     this.onEvent({ 
-      type: 'CARD_BETTING_STARTED', 
-      communityCount: this.communityCards.length,
-      activeTurnPlayer: this.activeTurnPlayer 
+      type: 'BETTING_ROUND_STARTED', 
+      phase: this.phase, 
+      firstPlayer: this.activeTurnPlayer 
     });
+    this.notifyState();
   }
 
   // End hand due to fold
