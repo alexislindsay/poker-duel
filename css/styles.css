@@ -285,6 +285,43 @@ html, body {
   justify-content: space-between;
   padding: 3px 4px;
   color: #1e293b;
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+}
+
+.card-front.custom-art-card {
+  background-size: cover;
+  background-position: center;
+  border: 1.5px solid #d4af37;
+  position: relative;
+}
+
+.card-art-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 25%, rgba(0,0,0,0) 75%, rgba(0,0,0,0.55) 100%);
+  pointer-events: none;
+}
+
+.card-front.custom-art-card .corner {
+  z-index: 5;
+  background: rgba(15, 23, 42, 0.75);
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  color: #fef08a;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
+.card-front.food-card {
+  background: #fdfbf7;
+  border: 1.5px solid #d4af37;
+}
+
+.center-food {
+  font-size: clamp(1.4rem, 4vw, 2rem);
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));
 }
 
 .card-front.red-suit { color: #dc2626; }
@@ -897,4 +934,176 @@ html, body {
     padding: 8px 4px;
     font-size: 0.76rem;
   }
+}
+
+/* =========================================================
+   ARCADE GAME SELECTION LOBBY & GAME MODALS
+   ========================================================= */
+
+.game-select-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.game-select-card {
+  background: rgba(30, 41, 59, 0.85);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 10px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.game-select-card:hover {
+  background: rgba(51, 65, 85, 0.9);
+  border-color: rgba(251, 191, 36, 0.6);
+  transform: translateY(-2px);
+}
+
+.game-select-card.selected {
+  border-color: #fbbf24;
+  background: rgba(245, 158, 11, 0.18);
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.4);
+}
+
+.game-select-card .game-icon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+}
+
+.game-select-card .game-name {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #fef08a;
+  line-height: 1.1;
+}
+
+.game-select-card .game-subtitle {
+  font-size: 0.62rem;
+  color: #94a3b8;
+  margin-top: 2px;
+  line-height: 1.1;
+}
+
+/* Busted / Caught in a Lie Banner */
+.busted-banner {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(127, 29, 29, 0.98);
+  border: 3px solid #ef4444;
+  box-shadow: 0 0 40px rgba(239, 68, 68, 0.8), 0 15px 40px rgba(0,0,0,0.9);
+  border-radius: 18px;
+  padding: 16px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  z-index: 300;
+  width: 90%;
+  max-width: 380px;
+  animation: alarmPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes alarmPop {
+  0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+.busted-icon { font-size: 2.2rem; animation: pulse 0.8s infinite; }
+.busted-title { font-size: 1.3rem; font-weight: 900; color: #fee2e2; text-shadow: 0 0 10px rgba(239, 68, 68, 0.8); }
+.busted-desc { font-size: 0.88rem; color: #fecaca; font-weight: 700; line-height: 1.3; }
+
+/* Go Fish Ranks Grid */
+.gofish-ranks-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.btn-gofish-rank {
+  background: #1e293b;
+  border: 1.5px solid #fbbf24;
+  color: #fef08a;
+  font-size: 1.1rem;
+  font-weight: 900;
+  padding: 12px 6px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.btn-gofish-rank:hover {
+  background: #334155;
+  transform: scale(1.08);
+}
+
+/* Wild Suit Grid */
+.wild-suit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.btn-wild-suit {
+  background: #1e293b;
+  border: 1.5px solid #d4af37;
+  color: #f8fafc;
+  font-size: 1rem;
+  font-weight: 800;
+  padding: 14px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-wild-suit:hover {
+  background: #f59e0b;
+  color: black;
+  transform: translateY(-2px);
+}
+
+/* Spades Bid Grid */
+.spades-bid-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.btn-spades-bid {
+  background: #1e293b;
+  border: 1px solid #475569;
+  color: #f1f5f9;
+  font-size: 1rem;
+  font-weight: 800;
+  padding: 10px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.btn-spades-bid:hover {
+  background: #3b82f6;
+  border-color: #60a5fa;
+}
+
+/* Center Arcade Stage */
+.center-arcade-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 8px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 4px;
 }

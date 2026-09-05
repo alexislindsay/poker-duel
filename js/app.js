@@ -1,28 +1,28 @@
-// js/app.js - Main Game Application Controller
+// js/app.js - Family Card Arcade Unified Multi-Game Controller
 
-class PokerDuelApp {
+const GAME_TYPES = {
+  POKER_DUEL: 'POKER_DUEL',
+  GO_FISH: 'GO_FISH',
+  CRAZY_EIGHTS: 'CRAZY_EIGHTS',
+  SPADES: 'SPADES'
+};
+
+class FamilyCardArcadeApp {
   constructor() {
+    this.activeGame = GAME_TYPES.POKER_DUEL;
     this.mode = 'AI'; // 'AI', 'ONLINE', 'PASS_PLAY'
-    this.localPlayerId = 0; // 0 = Player 1 / Host, 1 = Player 2 / Guest
+    this.localPlayerId = 0; // 0 = P1/Host, 1 = P2/Guest
     this.isHost = true;
-    this.latestState = null;
-    
-    this.engine = new GameEngine({
-      onStateChange: (state) => {
-        if (this.mode === 'ONLINE' && this.isHost) {
-          this.network.send({ type: 'SYNC_STATE', state: this.engine.getSanitizedStateForPlayer(1) });
-          this.renderGameState(this.engine.getSanitizedStateForPlayer(0));
-        } else {
-          this.renderGameState(state);
-        }
-        if (this.mode === 'AI') {
-          this.triggerAIIfNeeded();
-        }
-      },
-      onEvent: (event) => this.handleGameEvent(event)
-    });
+    this.latestRemoteState = null;
 
-    this.ai = new DadBotAI('DadBot', 'balanced');
+    // Initialize Card Theme
+    this.currentTheme = localStorage.getItem('poker_duel_deck_theme') || 'family_food';
+    setDeckTheme(this.currentTheme);
+
+    // Instantiate Engines
+    this.initEngines();
+
+    // Networking
     this.network = new NetworkManager({
       onConnected: (info) => this.onNetworkConnected(info),
       onDisconnected: () => this.onNetworkDisconnected(),
@@ -30,27 +30,80 @@ class PokerDuelApp {
       onError: (err) => this.onNetworkError(err)
     });
 
+    // AI Bots
+    this.pokerAI = new DadBotAI('Dad', 'balanced');
+
     this.initDOM();
     this.bindEvents();
     this.checkUrlParams();
   }
 
-  getCurrentState() {
-    if (this.mode === 'ONLINE' && !this.isHost && this.latestState) {
-      return this.latestState;
-    }
-    return this.engine.getStateSnapshot();
+  initEngines() {
+    // 1. Poker Duel Engine
+    this.pokerEngine = new GameEngine({
+      onStateChange: (state) => this.onEngineStateChange('POKER_DUEL', state),
+      onEvent: (event) => this.onEngineEvent('POKER_DUEL', event)
+    });
+
+    // 2. Go Fish Engine
+    this.goFishEngine = new GoFishEngine({
+      onStateChange: (state) => this.onEngineStateChange('GO_FISH', state),
+      onEvent: (event) => this.onEngineEvent('GO_FISH', event)
+    });
+
+    // 3. Crazy 8s Engine
+    this.crazy8Engine = new CrazyEightsEngine({
+      onStateChange: (state) => this.onEngineStateChange('CRAZY_EIGHTS', state),
+      onEvent: (event) => this.onEngineEvent('CRAZY_EIGHTS', event)
+    });
+
+    // 4. Spades Engine
+    this.spadesEngine = new SpadesEngine({
+      onStateChange: (state) => this.onEngineStateChange('SPADES', state),
+      onEvent: (event) => this.onEngineEvent('SPADES', event)
+    });
   }
 
+  getCurrentEngine() {
+    switch (this.activeGame) {
+      case GAME_TYPES.GO_FISH: return this.goFishEngine;
+      case GAME_TYPES.CRAZY_EIGHTS: return this.crazy8Engine;
+      case GAME_TYPES.SPADES: return this.spadesEngine;
+      default: return this.pokerEngine;
+    }
+  }
+
+  getCurrentState() {
+    if (this.mode === 'ONLINE' && !this.isHost && this.latestRemoteState) {
+      return this.latestRemoteState;
+    }
+    return this.getCurrentEngine().getStateSnapshot();
+  }
+
+  /* =========================================================================
+     DOM INITIALIZATION & BINDINGS
+     ========================================================================= */
   initDOM() {
-    // Buttons & Inputs
+    // Header & Navigation
+    this.headerGameIcon = document.getElementById('header-game-icon');
+    this.headerGameTitle = document.getElementById('header-game-title');
+    this.btnToggleTheme = document.getElementById('btn-toggle-theme');
+    this.btnToggleSound = document.getElementById('btn-toggle-sound');
+    this.btnShowRules = document.getElementById('btn-show-rules');
+    this.btnMainMenu = document.getElementById('btn-main-menu');
+    this.btnShareRoom = document.getElementById('btn-share-room');
+    this.roomBadge = document.getElementById('room-badge');
+    this.roomBadgeText = document.getElementById('room-badge-text');
+
+    // Poker Action Controls
     this.btnFold = document.getElementById('btn-fold');
     this.btnCheckCall = document.getElementById('btn-check-call');
     this.btnBetRaise = document.getElementById('btn-bet-raise');
     this.btnAllIn = document.getElementById('btn-allin');
     this.betSlider = document.getElementById('bet-slider');
+    this.actionControlsContainer = document.getElementById('action-controls-container');
 
-    // Drafting
+    // Drafting Spotlight
     this.draftSpotlight = document.getElementById('draft-spotlight');
     this.draftPrompt = document.getElementById('draft-prompt');
     this.draftCardContainer = document.getElementById('draft-card-container');
@@ -59,7 +112,7 @@ class PokerDuelApp {
     this.btnDraftKeep = document.getElementById('btn-draft-keep');
     this.btnDraftDiscard = document.getElementById('btn-draft-discard');
 
-    // Player Elements
+    // Players Pods
     this.p0CardsContainer = document.getElementById('player-cards');
     this.p1CardsContainer = document.getElementById('opponent-cards');
     this.p0Chips = document.getElementById('player-chips');
@@ -71,630 +124,493 @@ class PokerDuelApp {
     this.p0Pod = document.getElementById('player-info-card');
     this.p1Pod = document.getElementById('opponent-info-card');
 
-    // Table & Assist
-    this.potDisplay = document.getElementById('pot-amount');
+    // Table Areas
+    this.mainTable = document.getElementById('main-table');
+    this.potDisplayWrapper = document.getElementById('pot-display-wrapper');
+    this.potAmount = document.getElementById('pot-amount');
+    this.potLabel = document.getElementById('pot-label');
+    this.pokerCommunityContainer = document.getElementById('poker-community-container');
+    this.centerArcadeStage = document.getElementById('center-arcade-stage');
     this.roundBlindsInfo = document.getElementById('round-blinds-info');
+    this.handStrengthMeter = document.getElementById('hand-strength-meter');
     this.assistHandName = document.getElementById('assist-hand-name');
     this.meterSegments = document.querySelectorAll('.meter-segment');
     this.showdownBanner = document.getElementById('showdown-banner');
     this.showdownBannerTitle = document.getElementById('showdown-banner-title');
     this.showdownBannerDesc = document.getElementById('showdown-banner-desc');
     this.btnShowdownNext = document.getElementById('btn-showdown-next');
+    this.bustedBanner = document.getElementById('busted-banner');
 
     // Modals
+    this.modalGameSelect = document.getElementById('modal-game-select');
     this.modalWelcome = document.getElementById('modal-welcome');
     this.modalOnline = document.getElementById('modal-online-room');
-    this.modalSummary = document.getElementById('modal-round-summary');
     this.modalRules = document.getElementById('modal-rules');
     this.modalGameOver = document.getElementById('modal-game-over');
+    this.modalGoFishAsk = document.getElementById('modal-gofish-ask');
+    this.modalGoFishRespond = document.getElementById('modal-gofish-respond');
+    this.modalCrazy8Suit = document.getElementById('modal-crazy8-suit');
+    this.modalSpadesBid = document.getElementById('modal-spades-bid');
+
+    // Game Over Elements
     this.gameOverTitle = document.getElementById('game-over-title');
     this.gameOverDesc = document.getElementById('game-over-desc');
     this.gameOverRounds = document.getElementById('game-over-rounds');
     this.btnRematch = document.getElementById('btn-rematch');
     this.btnGameOverMenu = document.getElementById('btn-game-over-menu');
-
-    // Room info
-    this.roomBadge = document.getElementById('room-badge');
-    this.roomBadgeText = document.getElementById('room-badge-text');
-    this.btnShareRoom = document.getElementById('btn-share-room');
-    this.displayRoomCode = document.getElementById('display-room-code');
-    this.roomStatusMessage = document.getElementById('room-status-message');
-    this.inputJoinCode = document.getElementById('input-join-code');
   }
 
   bindEvents() {
-    // Mode Buttons
-    document.getElementById('btn-start-ai').addEventListener('click', () => {
-      this.startAIMode();
-    });
+    // Theme toggle
+    if (this.btnToggleTheme) {
+      this.btnToggleTheme.addEventListener('click', () => {
+        this.currentTheme = this.currentTheme === 'family_food' ? 'classic' : 'family_food';
+        setDeckTheme(this.currentTheme);
+        SoundFX.play('button');
+        this.showToast(`Switched to ${this.currentTheme === 'family_food' ? 'Family Food & The Johns 🍔' : 'Classic Vegas ♠️'} Deck!`);
+        this.render();
+      });
+    }
 
-    document.getElementById('btn-start-pass').addEventListener('click', () => {
-      this.startPassAndPlay();
-    });
+    // Sound toggle
+    if (this.btnToggleSound) {
+      this.btnToggleSound.addEventListener('click', () => {
+        const enabled = SoundFX.toggle();
+        this.btnToggleSound.textContent = enabled ? '🔊' : '🔇';
+      });
+    }
 
-    document.getElementById('btn-start-online').addEventListener('click', () => {
-      this.openHostRoomModal();
-    });
+    // Menu / Game Selection
+    if (this.btnMainMenu) {
+      this.btnMainMenu.addEventListener('click', () => {
+        SoundFX.play('button');
+        this.openModal('modal-game-select');
+      });
+    }
 
-    // Room actions
-    document.getElementById('btn-close-room-modal').addEventListener('click', () => {
-      this.modalOnline.classList.remove('active');
-    });
-
-    document.getElementById('btn-copy-code').addEventListener('click', () => {
-      this.copyRoomLink();
-    });
-
-    document.getElementById('btn-confirm-join').addEventListener('click', () => {
-      const code = this.inputJoinCode.value.trim();
-      if (code) this.joinOnlineRoom(code);
-    });
-
-    this.btnShareRoom.addEventListener('click', () => {
-      this.modalOnline.classList.add('active');
-    });
-
-    // Top Controls
-    document.getElementById('btn-toggle-sound').addEventListener('click', (e) => {
-      const enabled = sounds.toggleSound();
-      e.target.textContent = enabled ? '🔊' : '🔇';
-      this.showToast(enabled ? 'Sound Enabled' : 'Sound Muted');
-    });
-
-    document.getElementById('btn-show-rules').addEventListener('click', () => {
-      this.modalRules.classList.add('active');
-    });
-
-    document.getElementById('btn-close-rules').addEventListener('click', () => {
-      this.modalRules.classList.remove('active');
-    });
-    document.getElementById('btn-dismiss-rules').addEventListener('click', () => {
-      this.modalRules.classList.remove('active');
-    });
-
-    document.getElementById('btn-main-menu').addEventListener('click', () => {
-      this.modalWelcome.classList.add('active');
-    });
-
-    // Betting Action Buttons
-    this.btnFold.addEventListener('click', () => this.handleAction('fold'));
-    this.btnCheckCall.addEventListener('click', () => {
-      const state = this.getCurrentState();
-      const localPlayer = state.players[this.localPlayerId];
-      const callAmount = state.currentBet - localPlayer.currentRoundBet;
-      if (callAmount <= 0) {
-        this.handleAction('check');
-      } else {
-        this.handleAction('call', callAmount);
-      }
-    });
-
-    this.btnBetRaise.addEventListener('click', () => {
-      const amount = parseInt(this.betSlider.value, 10);
-      this.handleAction('raise', amount);
-    });
-
-    this.btnAllIn.addEventListener('click', () => {
-      const state = this.getCurrentState();
-      const localPlayer = state.players[this.localPlayerId];
-      const maxAmount = localPlayer.chips + localPlayer.currentRoundBet;
-      this.handleAction('raise', maxAmount);
-    });
-
-    // Bet Slider & Preset Chips
-    this.betSlider.addEventListener('input', () => {
-      this.updateBetRaiseButtonText();
-    });
-
-    document.querySelectorAll('.preset-chip').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const valType = e.target.dataset.val;
-        const state = this.getCurrentState();
-        const localPlayer = state.players[this.localPlayerId];
-        const min = Math.max(state.minRaise || state.currentBigBlind, state.currentBet + state.currentBigBlind);
-        const max = localPlayer.chips + localPlayer.currentRoundBet;
-
-        let target = min;
-        if (valType === 'min') target = min;
-        else if (valType === '2bb') target = state.currentBigBlind * 2;
-        else if (valType === '3bb') target = state.currentBigBlind * 3;
-        else if (valType === 'pot') target = Math.min(max, state.pot + (state.currentBet * 2));
-        else if (valType === 'max') target = max;
-
-        this.betSlider.value = Math.min(max, Math.max(min, target));
-        this.updateBetRaiseButtonText();
+    // Game Selection Cards in Modal
+    document.querySelectorAll('.game-select-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const game = card.dataset.game;
+        if (game) {
+          SoundFX.play('button');
+          this.switchGame(game);
+          this.closeModal('modal-game-select');
+          this.openModal('modal-welcome');
+        }
       });
     });
 
-    // Drafting Decision Buttons
-    this.btnDraftKeep.addEventListener('click', () => {
-      sounds.playCardDeal();
-      this.handleDraftDecision('keep');
-    });
-
-    this.btnDraftDiscard.addEventListener('click', () => {
-      sounds.playCardDiscard();
-      this.handleDraftDecision('discard');
-    });
-
-    // Next Round & Rematch Buttons (Both Modal & On-Table Banner)
-    const advanceToNextRound = () => {
-      this.modalSummary.classList.remove('active');
-      if (this.showdownBanner) this.showdownBanner.style.display = 'none';
-
-      if (this.engine.phase === GAME_PHASES.GAME_OVER || this.engine.players[0].chips <= 0 || this.engine.players[1].chips <= 0) {
-        this.startRematch();
-        return;
-      }
-
-      if (this.mode === 'ONLINE' && !this.isHost) {
-        this.network.send({ type: 'REQUEST_NEXT_ROUND' });
-      } else {
-        this.engine.startNewRound();
-      }
-    };
-
-    document.getElementById('btn-next-round').addEventListener('click', advanceToNextRound);
-    if (this.btnShowdownNext) {
-      this.btnShowdownNext.addEventListener('click', advanceToNextRound);
+    // Rules Modal
+    if (this.btnShowRules) {
+      this.btnShowRules.addEventListener('click', () => {
+        SoundFX.play('button');
+        this.updateRulesContent();
+        this.openModal('modal-rules');
+      });
     }
 
-    // Rematch & Main Menu from Game Over modal
+    // Welcome Mode Buttons
+    const btnModeAi = document.getElementById('btn-mode-ai');
+    const btnModePass = document.getElementById('btn-mode-pass');
+    const btnModeOnline = document.getElementById('btn-mode-online');
+
+    if (btnModeAi) {
+      btnModeAi.addEventListener('click', () => {
+        this.mode = 'AI';
+        this.localPlayerId = 0;
+        this.isHost = true;
+        this.closeModal('modal-welcome');
+        this.startNewMatch();
+      });
+    }
+
+    if (btnModePass) {
+      btnModePass.addEventListener('click', () => {
+        this.mode = 'PASS_PLAY';
+        this.localPlayerId = 0;
+        this.isHost = true;
+        this.closeModal('modal-welcome');
+        this.startNewMatch();
+      });
+    }
+
+    if (btnModeOnline) {
+      btnModeOnline.addEventListener('click', () => {
+        this.closeModal('modal-welcome');
+        this.openModal('modal-online-room');
+      });
+    }
+
+    // Online Lobby Buttons
+    const btnCreateRoom = document.getElementById('btn-create-room');
+    const btnJoinRoom = document.getElementById('btn-join-room');
+    const inputJoinCode = document.getElementById('input-join-code');
+
+    if (btnCreateRoom) {
+      btnCreateRoom.addEventListener('click', async () => {
+        btnCreateRoom.disabled = true;
+        btnCreateRoom.textContent = 'Generating Room...';
+        try {
+          const roomId = await this.network.createRoom();
+          this.mode = 'ONLINE';
+          this.isHost = true;
+          this.localPlayerId = 0;
+          this.showHostLobby(roomId);
+        } catch (err) {
+          alert('Could not create room: ' + err.message);
+          btnCreateRoom.disabled = false;
+          btnCreateRoom.textContent = 'Create New Room';
+        }
+      });
+    }
+
+    if (btnJoinRoom) {
+      btnJoinRoom.addEventListener('click', async () => {
+        const code = inputJoinCode.value.trim().toUpperCase();
+        if (!code) return alert('Please enter a 6-letter room code.');
+        btnJoinRoom.disabled = true;
+        btnJoinRoom.textContent = 'Connecting...';
+        try {
+          await this.network.joinRoom(code);
+          this.mode = 'ONLINE';
+          this.isHost = false;
+          this.localPlayerId = 1;
+          this.closeModal('modal-online-room');
+          this.updateRoomBadge(code);
+        } catch (err) {
+          alert('Could not join room: ' + err.message);
+          btnJoinRoom.disabled = false;
+          btnJoinRoom.textContent = 'Join Room';
+        }
+      });
+    }
+
+    // Share link
+    if (this.btnShareRoom) {
+      this.btnShareRoom.addEventListener('click', () => {
+        if (this.network.roomId) {
+          const url = `${window.location.origin}${window.location.pathname}?room=${this.network.roomId}&game=${this.activeGame}`;
+          navigator.clipboard.writeText(url).then(() => {
+            this.showToast('Room invite link copied to clipboard!');
+          });
+        }
+      });
+    }
+
+    // Poker Action Buttons
+    if (this.btnFold) this.btnFold.addEventListener('click', () => this.handlePokerAction('FOLD'));
+    if (this.btnCheckCall) this.btnCheckCall.addEventListener('click', () => this.handlePokerAction('CHECK_CALL'));
+    if (this.btnBetRaise) this.btnBetRaise.addEventListener('click', () => this.handlePokerAction('BET_RAISE', parseInt(this.betSlider.value, 10)));
+    if (this.btnAllIn) this.btnAllIn.addEventListener('click', () => {
+      const state = this.getCurrentState();
+      const p = state.players[this.localPlayerId];
+      this.handlePokerAction('BET_RAISE', p.chips + p.currentRoundBet);
+    });
+    if (this.betSlider) {
+      this.betSlider.addEventListener('input', () => this.updateBetRaiseButtonText());
+    }
+
+    // Poker / Spades Draft Buttons
+    if (this.btnDraftKeep) {
+      this.btnDraftKeep.addEventListener('click', () => {
+        if (this.activeGame === GAME_TYPES.SPADES) {
+          this.spadesEngine.playerKeepDraftCard(this.localPlayerId);
+        } else {
+          this.pokerEngine.playerKeepDraftCard(this.localPlayerId);
+        }
+      });
+    }
+    if (this.btnDraftDiscard) {
+      this.btnDraftDiscard.addEventListener('click', () => {
+        if (this.activeGame === GAME_TYPES.SPADES) {
+          this.spadesEngine.playerDiscardDraftCard(this.localPlayerId);
+        } else {
+          this.pokerEngine.playerDiscardDraftCard(this.localPlayerId);
+        }
+      });
+    }
+
+    // Showdown Next Hand
+    if (this.btnShowdownNext) {
+      this.btnShowdownNext.addEventListener('click', () => {
+        if (this.showdownBanner) this.showdownBanner.style.display = 'none';
+        if (this.mode === 'ONLINE' && !this.isHost) {
+          this.network.send({ type: 'REQUEST_NEXT_HAND' });
+        } else {
+          this.getCurrentEngine().startNextRound();
+        }
+      });
+    }
+
+    // Rematch / Game Over
     if (this.btnRematch) {
       this.btnRematch.addEventListener('click', () => {
-        this.startRematch();
+        this.closeModal('modal-game-over');
+        this.startNewMatch();
       });
     }
-
     if (this.btnGameOverMenu) {
       this.btnGameOverMenu.addEventListener('click', () => {
-        this.returnToMainMenu();
+        this.closeModal('modal-game-over');
+        this.openModal('modal-game-select');
+      });
+    }
+
+    // Close Modals buttons
+    document.querySelectorAll('.btn-close-modal').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const modal = e.target.closest('.modal-backdrop');
+        if (modal) modal.style.display = 'none';
+      });
+    });
+
+    // Go Fish Respond Buttons
+    const btnGiveFish = document.getElementById('btn-gofish-give');
+    const btnClaimGoFish = document.getElementById('btn-gofish-claim');
+    if (btnGiveFish) {
+      btnGiveFish.addEventListener('click', () => {
+        this.closeModal('modal-gofish-respond');
+        this.goFishEngine.respondHonest(this.localPlayerId);
+      });
+    }
+    if (btnClaimGoFish) {
+      btnClaimGoFish.addEventListener('click', () => {
+        this.closeModal('modal-gofish-respond');
+        this.goFishEngine.respondGoFish(this.localPlayerId);
+      });
+    }
+
+    // Crazy 8s Suit Chooser
+    document.querySelectorAll('.suit-choice-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const chosenSuit = btn.dataset.suit;
+        this.closeModal('modal-crazy8-suit');
+        if (this.pendingCrazy8CardId) {
+          this.crazy8Engine.playCard(this.localPlayerId, this.pendingCrazy8CardId, chosenSuit);
+          this.pendingCrazy8CardId = null;
+        }
+      });
+    });
+
+    // Spades Bid Modal Buttons
+    const btnSubmitBid = document.getElementById('btn-submit-spades-bid');
+    const inputSpadesBid = document.getElementById('input-spades-bid');
+    if (btnSubmitBid && inputSpadesBid) {
+      btnSubmitBid.addEventListener('click', () => {
+        const bid = parseInt(inputSpadesBid.value, 10) || 0;
+        this.closeModal('modal-spades-bid');
+        this.spadesEngine.submitBid(this.localPlayerId, bid);
       });
     }
   }
 
-  checkUrlParams() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const room = urlParams.get('room');
-    if (room) {
-      this.inputJoinCode.value = room;
-      this.joinOnlineRoom(room);
+  /* =========================================================================
+     GAME SWITCHING & INITIALIZATION
+     ========================================================================= */
+  switchGame(gameType) {
+    this.activeGame = gameType;
+    
+    // Update Header
+    switch (gameType) {
+      case GAME_TYPES.GO_FISH:
+        this.headerGameIcon.textContent = '🎣';
+        this.headerGameTitle.textContent = 'GO FISH (LIAR\'S TRAP)';
+        break;
+      case GAME_TYPES.CRAZY_EIGHTS:
+        this.headerGameIcon.textContent = '🎴';
+        this.headerGameTitle.textContent = 'CRAZY EIGHTS';
+        break;
+      case GAME_TYPES.SPADES:
+        this.headerGameIcon.textContent = '♠️';
+        this.headerGameTitle.textContent = 'SPADES DUEL';
+        break;
+      default:
+        this.headerGameIcon.textContent = '🃏';
+        this.headerGameTitle.textContent = 'POKER DUEL';
+        break;
     }
-  }
 
-  /* ---------------- Mode Handlers ---------------- */
-
-  startAIMode() {
-    this.mode = 'AI';
-    this.localPlayerId = 0;
-    this.isHost = true;
-    this.engine.players[0].name = 'You';
-    this.engine.players[1].name = 'DadBot 🤖';
-    this.p0Name.textContent = 'You';
-    this.p1Name.textContent = 'DadBot 🤖';
-    this.modalWelcome.classList.remove('active');
-    this.roomBadge.style.display = 'none';
-    this.btnShareRoom.style.display = 'none';
-
-    this.engine.resetGame();
-    this.engine.startNewRound();
-    this.showToast('Game Started vs DadBot!');
-  }
-
-  startPassAndPlay() {
-    this.mode = 'PASS_PLAY';
-    this.localPlayerId = 0;
-    this.engine.players[0].name = 'Player 1';
-    this.engine.players[1].name = 'Player 2';
-    this.p0Name.textContent = 'Player 1';
-    this.p1Name.textContent = 'Player 2';
-    this.modalWelcome.classList.remove('active');
-    this.roomBadge.style.display = 'none';
-    this.btnShareRoom.style.display = 'none';
-
-    this.engine.resetGame();
-    this.engine.startNewRound();
-    this.showToast('Pass & Play Mode Started!');
-  }
-
-  async openHostRoomModal() {
-    this.modalWelcome.classList.remove('active');
-    this.modalOnline.classList.add('active');
-    this.roomStatusMessage.textContent = '⏳ Creating private room...';
-
-    try {
-      const code = await this.network.createRoom();
-      this.mode = 'ONLINE';
-      this.isHost = true;
-      this.localPlayerId = 0;
-      this.engine.players[0].name = 'You (Host)';
-      this.engine.players[1].name = 'Dad';
-      this.displayRoomCode.textContent = code;
-      this.roomStatusMessage.textContent = '⏳ Waiting for your dad to join with this link...';
-    } catch (err) {
-      this.roomStatusMessage.textContent = `❌ Error: ${err.message}`;
-    }
-  }
-
-  async joinOnlineRoom(code) {
-    this.modalWelcome.classList.remove('active');
-    this.modalOnline.classList.add('active');
-    this.roomStatusMessage.textContent = `⏳ Connecting to room ${code}...`;
-
-    try {
-      await this.network.joinRoom(code);
-      this.mode = 'ONLINE';
-      this.isHost = false;
-      this.localPlayerId = 1;
-      this.engine.players[0].name = 'Host';
-      this.engine.players[1].name = 'You';
-      this.p0Name.textContent = 'Host';
-      this.p1Name.textContent = 'You';
-      this.roomStatusMessage.textContent = '✅ Connected to room!';
-    } catch (err) {
-      this.roomStatusMessage.textContent = `❌ Failed to join: ${err.message}`;
-    }
-  }
-
-  copyRoomLink() {
-    const code = this.network.roomId || this.displayRoomCode.textContent;
-    const url = `${window.location.origin}${window.location.pathname}?room=${code}`;
-    navigator.clipboard.writeText(url).then(() => {
-      this.showToast('📋 Room link copied to clipboard!');
-    }).catch(() => {
-      prompt('Copy this room link:', url);
-    });
-  }
-
-  /* ---------------- Network P2P Sync ---------------- */
-
-  onNetworkConnected({ isHost, roomId }) {
-    this.modalOnline.classList.remove('active');
-    this.roomBadge.style.display = 'flex';
-    this.roomBadgeText.innerHTML = `Room: <strong>${roomId}</strong>`;
-    this.btnShareRoom.style.display = 'flex';
-    this.showToast('✅ Connected to opponent!');
-
-    if (isHost) {
-      this.engine.resetGame();
-      this.engine.startNewRound();
-      this.network.send({ type: 'SYNC_STATE', state: this.engine.getSanitizedStateForPlayer(1) });
+    // Toggle Stage Containers
+    if (gameType === GAME_TYPES.POKER_DUEL) {
+      this.pokerCommunityContainer.style.display = 'flex';
+      this.centerArcadeStage.style.display = 'none';
+      this.actionControlsContainer.style.display = 'flex';
+      this.potDisplayWrapper.style.display = 'flex';
+      this.handStrengthMeter.style.display = 'block';
     } else {
-      this.network.send({ type: 'REQUEST_SYNC' });
+      this.pokerCommunityContainer.style.display = 'none';
+      this.centerArcadeStage.style.display = 'flex';
+      this.actionControlsContainer.style.display = 'none';
+      this.potDisplayWrapper.style.display = (gameType === GAME_TYPES.SPADES) ? 'flex' : 'none';
+      this.handStrengthMeter.style.display = 'none';
     }
   }
 
-  onNetworkDisconnected() {
-    this.showToast('⚠️ Opponent disconnected.');
+  startNewMatch() {
+    if (this.showdownBanner) this.showdownBanner.style.display = 'none';
+    if (this.bustedBanner) this.bustedBanner.style.display = 'none';
+
+    const engine = this.getCurrentEngine();
+    engine.startNewGame();
+    this.render();
   }
 
-  onNetworkMessage(msg) {
-    if (this.isHost) {
-      // Host receives guest actions
-      if (msg.type === 'ACTION_BET') {
-        this.engine.handleBettingAction(1, msg.action, msg.amount);
-      } else if (msg.type === 'ACTION_DRAFT') {
-        this.engine.handleDraftDecision(1, msg.decision);
-      } else if (msg.type === 'REQUEST_NEXT_ROUND') {
-        this.engine.startNewRound();
-      } else if (msg.type === 'REQUEST_REMATCH') {
-        this.engine.startNewDuel();
-      } else if (msg.type === 'REQUEST_SYNC') {
-        this.network.send({ type: 'SYNC_STATE', state: this.engine.getSanitizedStateForPlayer(1) });
-      }
-    } else {
-      // Guest receives state sync from host
-      if (msg.type === 'SYNC_STATE') {
-        this.applySyncedState(msg.state);
-      }
-    }
-  }
+  /* =========================================================================
+     STATE & EVENT DISPATCH
+     ========================================================================= */
+  onEngineStateChange(game, state) {
+    if (game !== this.activeGame) return;
 
-  onNetworkError(err) {
-    console.error('Network Error', err);
-  }
-
-  applySyncedState(state) {
-    this.latestState = state;
-    this.renderGameState(state);
-  }
-
-  /* ---------------- Gameplay Actions ---------------- */
-
-  handleAction(action, amount = 0) {
-    const activePlayerId = (this.mode === 'PASS_PLAY') ? this.engine.activeTurnPlayer : this.localPlayerId;
-
-    if (this.mode === 'ONLINE' && !this.isHost) {
-      this.network.send({ type: 'ACTION_BET', action, amount });
-    } else {
-      this.engine.handleBettingAction(activePlayerId, action, amount);
-      this.triggerAIIfNeeded();
-    }
-  }
-
-  handleDraftDecision(decision) {
-    const activeDraftPlayerId = (this.mode === 'PASS_PLAY') ? this.engine.activeDraftPlayer : this.localPlayerId;
-
-    if (this.mode === 'ONLINE' && !this.isHost) {
-      this.network.send({ type: 'ACTION_DRAFT', decision });
-    } else {
-      this.engine.handleDraftDecision(activeDraftPlayerId, decision);
-      this.triggerAIIfNeeded();
-    }
-  }
-
-  triggerAIIfNeeded() {
-    if (this.mode !== 'AI') return;
-    if (this.aiTimeout) clearTimeout(this.aiTimeout);
-
-    this.aiTimeout = setTimeout(() => {
-      const state = this.engine.getStateSnapshot();
-
-      // Check if it's AI's turn to draft
-      if (state.phase === GAME_PHASES.DRAFTING && state.activeDraftPlayer === 1 && state.currentDrawnCard) {
-        const decision = this.ai.decideDraft(
-          state.currentDrawnCard,
-          this.engine.players[1].holeCards,
-          state.communityCards
-        );
-        if (decision === 'keep') sounds.playCardDeal();
-        else sounds.playCardDiscard();
-
-        this.engine.handleDraftDecision(1, decision);
-        return;
-      }
-
-      // Check if it's AI's turn to bet
-      if ((state.phase === GAME_PHASES.PRE_DRAFT_BETTING || state.phase === GAME_PHASES.CARD_BETTING) && state.activeTurnPlayer === 1) {
-        const decision = this.ai.decideBet(state, 1);
-        this.engine.handleBettingAction(1, decision.action, decision.amount || 0);
-      }
-    }, 750);
-  }
-
-  handleGameEvent(event) {
-    switch (event.type) {
-      case 'ROUND_STARTED':
-        sounds.playCardDeal();
-        this.showToast(`Round ${event.round} Started!`);
-        break;
-      case 'CARD_BETTING_STARTED':
-        sounds.playChipSound();
-        this.showToast(`Space ${event.communityCount} Placed — Betting Turn!`);
-        break;
-      case 'ACTION_CHECK':
-        sounds.playCheckSound();
-        break;
-      case 'ACTION_CALL':
-      case 'ACTION_RAISE':
-        sounds.playChipSound();
-        break;
-      case 'SHOWDOWN_RESULT':
-        sounds.playWin();
-        if (typeof confetti === 'function') {
-          confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-        }
-        this.showRoundSummary(event);
-        break;
-      case 'HAND_WON_FOLD':
-        sounds.playWin();
-        this.showRoundSummary({
-          reason: this.engine.winReason,
-          winner: this.engine.players[event.winnerId]
-        });
-        break;
-      case 'DUEL_GAME_OVER':
-        sounds.playWin();
-        if (typeof confetti === 'function') {
-          confetti({ particleCount: 150, spread: 90, origin: { y: 0.5 } });
-        }
-        this.showGameOver(event);
-        break;
-    }
-
-    // If Host in online mode, broadcast sanitized state
     if (this.mode === 'ONLINE' && this.isHost) {
-      this.network.send({ type: 'SYNC_STATE', state: this.engine.getSanitizedStateForPlayer(1) });
-    }
-  }
-
-  showRoundSummary(event) {
-    // If duel is over, let showGameOver handle the announcement
-    if (this.engine.phase === GAME_PHASES.GAME_OVER) return;
-
-    const isLocalWinner = (event.winner && event.winner.id === this.localPlayerId);
-    const wonAmt = this.engine.potWonAmount || this.engine.pot;
-    const titleText = isLocalWinner ? `YOU WON $${wonAmt}!` : `${event.winner ? event.winner.name.toUpperCase() : 'ROUND OVER'} WON $${wonAmt}!`;
-    const descText = event.reason || this.engine.winReason;
-
-    document.getElementById('round-winner-title').textContent = isLocalWinner ? `🏆 ${titleText}` : `👑 ${titleText}`;
-    document.getElementById('round-winner-desc').textContent = descText;
-
-    if (this.showdownBanner) {
-      this.showdownBannerTitle.textContent = titleText;
-      this.showdownBannerDesc.textContent = descText;
-      this.btnShowdownNext.textContent = '▶ NEXT HAND';
-      this.showdownBanner.style.display = 'flex';
-    }
-
-    const p0 = this.engine.players[0];
-    const p1 = this.engine.players[1];
-
-    document.getElementById('summary-p0-name').textContent = p0.name;
-    document.getElementById('summary-p0-eval').textContent = p0.handEval ? p0.handEval.name : '';
-    document.getElementById('summary-p1-name').textContent = p1.name;
-    document.getElementById('summary-p1-eval').textContent = p1.handEval ? p1.handEval.name : '';
-  }
-
-  showGameOver(event) {
-    const isLocalWinner = (event.winner && event.winner.id === this.localPlayerId);
-    const winnerName = event.winner ? event.winner.name : 'Player';
-
-    if (isLocalWinner) {
-      this.gameOverTitle.textContent = '👑 YOU WON THE DUEL!';
-      this.gameOverDesc.textContent = 'Congratulations! You cleaned out your opponent and won all $2,000!';
+      this.network.send({
+        type: 'SYNC_STATE',
+        game: this.activeGame,
+        state: this.getCurrentEngine().getSanitizedStateForPlayer(1)
+      });
+      this.renderGameState(this.getCurrentEngine().getSanitizedStateForPlayer(0));
     } else {
-      this.gameOverTitle.textContent = `👑 ${winnerName.toUpperCase()} WON THE DUEL!`;
-      this.gameOverDesc.textContent = `${winnerName} collected all $2,000 in chips! Ready for a rematch?`;
+      this.renderGameState(state);
     }
 
-    this.gameOverRounds.textContent = event.rounds || this.engine.roundNumber;
-    this.modalGameOver.classList.add('active');
-
-    if (this.showdownBanner) {
-      this.showdownBannerTitle.textContent = this.gameOverTitle.textContent;
-      this.showdownBannerDesc.textContent = this.gameOverDesc.textContent;
-      this.btnShowdownNext.textContent = '🔄 PLAY REMATCH';
-      this.showdownBanner.style.display = 'flex';
+    if (this.mode === 'AI') {
+      this.triggerAIIfNeeded();
     }
   }
 
-  startRematch() {
-    this.modalGameOver.classList.remove('active');
-    this.modalSummary.classList.remove('active');
-    if (this.showdownBanner) this.showdownBanner.style.display = 'none';
-    this.btnShowdownNext.textContent = '▶ NEXT HAND';
+  onEngineEvent(game, event) {
+    if (game !== this.activeGame) return;
 
-    if (this.mode === 'ONLINE' && !this.isHost) {
-      this.network.send({ type: 'REQUEST_REMATCH' });
-    } else {
-      this.engine.startNewDuel();
-      if (this.mode === 'ONLINE' && this.isHost) {
-        this.network.send({ type: 'SYNC_STATE', state: this.engine.getSanitizedStateForPlayer(1) });
+    switch (event.type) {
+      case 'DRAFT_CARD_DEALT':
+        SoundFX.play('draft_deal');
+        break;
+      case 'DRAFT_KEPT':
+        SoundFX.play('card_slide');
+        break;
+      case 'DRAFT_DISCARDED':
+        SoundFX.play('card_flip');
+        break;
+      case 'BET_PLACED':
+        SoundFX.play('chips');
+        break;
+      case 'POT_WON':
+        SoundFX.play('pot_win');
+        if (event.winnerId === 0 && window.confetti) {
+          window.confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        }
+        break;
+      case 'CAUGHT_IN_LIE':
+        SoundFX.play('bluff_caught');
+        this.triggerBustedAlarm(event.player, event.cards);
+        break;
+      case 'BOOK_COMPLETED':
+        SoundFX.play('chime');
+        this.showToast(`${event.playerName} completed a 4-of-a-kind Book of ${event.rank}s! 🏆`);
+        break;
+      case 'CARD_PLAYED':
+        SoundFX.play('card_slide');
+        break;
+      case 'CARD_DRAWN':
+        SoundFX.play('card_flip');
+        break;
+      case 'SUIT_CHANGED':
+        SoundFX.play('powerup');
+        this.showToast(`Wild 8! Active suit changed to ${getSuitSymbol(event.suit)} ${event.suit.toUpperCase()}!`);
+        break;
+    }
+  }
+
+  triggerBustedAlarm(liarPlayer, stolenCards) {
+    if (!this.bustedBanner) return;
+    this.bustedBanner.style.display = 'flex';
+    this.bustedBanner.classList.add('busted-pulse');
+    const msg = `${liarPlayer.name} secretly held ${stolenCards.length} matching card(s)! PENALTY: Surrendered + 2 Penalty Cards!`;
+    this.showToast(`🚨 ${msg}`);
+
+    setTimeout(() => {
+      if (this.bustedBanner) {
+        this.bustedBanner.style.display = 'none';
+        this.bustedBanner.classList.remove('busted-pulse');
       }
-    }
-    this.showToast('New Duel Started — Good Luck!');
+    }, 4500);
   }
 
-  returnToMainMenu() {
-    this.modalGameOver.classList.remove('active');
-    this.modalSummary.classList.remove('active');
-    if (this.showdownBanner) this.showdownBanner.style.display = 'none';
-    this.modalWelcome.classList.add('active');
+  /* =========================================================================
+     RENDERING ROUTERS
+     ========================================================================= */
+  render() {
+    this.renderGameState(this.getCurrentState());
   }
-
-  /* ---------------- UI Rendering ---------------- */
 
   renderGameState(state) {
-    // 1. Showdown / Round Over / Game Over Banner
-    if (this.showdownBanner) {
-      if (state.phase === GAME_PHASES.GAME_OVER) {
-        const isLocalWinner = (state.gameWinner && (state.gameWinner.id === this.localPlayerId || state.gameWinner.name === localPlayer.name));
-        const winnerName = state.gameWinner ? state.gameWinner.name : 'Champion';
-        this.showdownBannerTitle.textContent = isLocalWinner ? '👑 YOU WON THE DUEL!' : `👑 ${winnerName.toUpperCase()} WON THE DUEL!`;
-        this.showdownBannerDesc.textContent = state.winReason || 'All $2,000 in chips collected!';
-        this.btnShowdownNext.textContent = '🔄 PLAY REMATCH';
-        this.showdownBanner.style.display = 'flex';
-      } else if (state.phase === GAME_PHASES.ROUND_OVER || state.phase === GAME_PHASES.SHOWDOWN) {
-        const isLocalWinner = (state.roundWinner && (state.roundWinner.id === this.localPlayerId || state.roundWinner.name === localPlayer.name));
-        const wonAmt = state.potWonAmount || state.pot;
-        const winnerName = state.roundWinner ? (state.roundWinner.name ? state.roundWinner.name.toUpperCase() : 'ROUND OVER') : 'ROUND OVER';
-        const titleText = isLocalWinner ? `YOU WON $${wonAmt}!` : `${winnerName} WON $${wonAmt}!`;
-        this.showdownBannerTitle.textContent = isLocalWinner ? `🏆 ${titleText}` : `👑 ${titleText}`;
-        this.showdownBannerDesc.textContent = state.winReason || '';
-        this.btnShowdownNext.textContent = '▶ NEXT HAND';
-        this.showdownBanner.style.display = 'flex';
-      } else {
-        this.showdownBanner.style.display = 'none';
-      }
+    if (!state) return;
+
+    switch (this.activeGame) {
+      case GAME_TYPES.GO_FISH:
+        this.renderGoFish(state);
+        break;
+      case GAME_TYPES.CRAZY_EIGHTS:
+        this.renderCrazy8s(state);
+        break;
+      case GAME_TYPES.SPADES:
+        this.renderSpades(state);
+        break;
+      default:
+        this.renderPokerDuel(state);
+        break;
     }
+  }
 
-    // 2. Pot & Blinds
-    this.potDisplay.textContent = `$${state.pot}`;
-    this.roundBlindsInfo.textContent = `Round ${state.roundNumber} • Blinds: $${state.blindLevel.small} / $${state.blindLevel.big}`;
-
-    // 2. Player info (Bottom Pod = Local Player, Top Pod = Opponent)
+  /* =========================================================================
+     POKER DUEL RENDERER
+     ========================================================================= */
+  renderPokerDuel(state) {
+    const isShowdown = state.phase === 'SHOWDOWN' || state.phase === 'HAND_COMPLETE';
     const localPlayer = state.players[this.localPlayerId];
     const opponentPlayer = state.players[1 - this.localPlayerId];
 
-    this.p0Chips.textContent = `💰 $${localPlayer.chips}`;
-    this.p1Chips.textContent = `💰 $${opponentPlayer.chips}`;
+    // Info cards
     this.p0Name.textContent = localPlayer.name;
+    this.p0Chips.textContent = `💰 $${localPlayer.chips}`;
     this.p1Name.textContent = opponentPlayer.name;
-
-    this.p0BetBadge.style.visibility = localPlayer.currentRoundBet > 0 ? 'visible' : 'hidden';
-    this.p0BetBadge.textContent = `Bet: $${localPlayer.currentRoundBet}`;
-    this.p1BetBadge.style.visibility = opponentPlayer.currentRoundBet > 0 ? 'visible' : 'hidden';
-    this.p1BetBadge.textContent = `Bet: $${opponentPlayer.currentRoundBet}`;
+    this.p1Chips.textContent = `💰 $${opponentPlayer.chips}`;
 
     // Active Pod Glow
-    const isMyTurn = (state.activeTurnPlayer === this.localPlayerId) || (state.activeDraftPlayer === this.localPlayerId);
-    const isOpponentTurn = (state.activeTurnPlayer === (1 - this.localPlayerId)) || (state.activeDraftPlayer === (1 - this.localPlayerId));
-    this.p0Pod.classList.toggle('active-turn', isMyTurn);
-    this.p1Pod.classList.toggle('active-turn', isOpponentTurn);
+    if (state.activeTurnPlayer === this.localPlayerId) {
+      this.p0Pod.classList.add('active-turn');
+      this.p1Pod.classList.remove('active-turn');
+    } else {
+      this.p1Pod.classList.add('active-turn');
+      this.p0Pod.classList.remove('active-turn');
+    }
 
-    // 3. Render Community Slots (5 spaces)
+    // Bets
+    this.p0BetBadge.textContent = `Bet: $${localPlayer.currentRoundBet}`;
+    this.p0BetBadge.style.visibility = localPlayer.currentRoundBet > 0 ? 'visible' : 'hidden';
+    this.p1BetBadge.textContent = `Bet: $${opponentPlayer.currentRoundBet}`;
+    this.p1BetBadge.style.visibility = opponentPlayer.currentRoundBet > 0 ? 'visible' : 'hidden';
+
+    // Pot & Blinds
+    this.potAmount.textContent = `$${state.pot}`;
+    this.roundBlindsInfo.textContent = `Round ${state.roundNumber} • Blinds: $${state.currentSmallBlind} / $${state.currentBigBlind}`;
+
+    // Community Cards (5 slots)
     for (let i = 0; i < 5; i++) {
       const slotEl = document.getElementById(`slot-${i}`);
+      if (!slotEl) continue;
       slotEl.innerHTML = '';
-      if (state.communityCards[i]) {
-        slotEl.classList.add('filled');
-        const cardObj = state.communityCards[i];
-        // Check if highlighted in best 5
-        const isBestCard = localPlayer.handEval && localPlayer.handEval.best5Cards && localPlayer.handEval.best5Cards.some(c => c && c.id === cardObj.id);
-        const cardEl = renderCardElement(cardObj, { isHighlighted: isBestCard, cardSize: 'medium' });
+      const card = state.communityCards[i];
+      if (card) {
+        const isBest = isShowdown && localPlayer.handEval && localPlayer.handEval.best5Cards && localPlayer.handEval.best5Cards.some(c => c && c.id === card.id);
+        const cardEl = renderCardElement(card, { isHighlighted: isBest, cardSize: 'medium' });
         slotEl.appendChild(cardEl);
       } else {
-        slotEl.classList.remove('filled');
         slotEl.innerHTML = `<span class="slot-number">${i + 1}</span>`;
       }
     }
 
-    // 4. Render Hole Cards (Bottom = Local Player, Top = Opponent)
-    this.renderHoleCards(state);
-
-    // 5. Render 10-Tier Yellow Hand Strength Assist HUD
-    const activeEval = localPlayer.handEval;
-    if (activeEval) {
-      this.assistHandName.textContent = activeEval.name;
-      const currentLevel = activeEval.level || 1;
-      if (this.meterSegments) {
-        this.meterSegments.forEach(seg => {
-          const segLevel = parseInt(seg.dataset.level, 10);
-          seg.classList.toggle('active', segLevel <= currentLevel);
-          seg.classList.toggle('current-tier', segLevel === currentLevel);
-        });
-      }
-    }
-
-    // 6. Render Drafting Spotlight (SECRET: Only the drafting player sees the card face-up!)
-    if (state.phase === GAME_PHASES.DRAFTING && state.currentDrawnCard) {
-      this.draftSpotlight.style.display = 'flex';
-      this.draftCardContainer.innerHTML = '';
-
-      const isMyDraftTurn = (this.mode === 'PASS_PLAY') || (state.activeDraftPlayer === this.localPlayerId);
-      const activeDrafterName = state.players[state.activeDraftPlayer].name;
-
-      if (isMyDraftTurn) {
-        // Active drafter sees card face-up with Keep / Discard controls
-        const cardEl = renderCardElement(state.currentDrawnCard, { cardSize: 'large', faceDown: false });
-        this.draftCardContainer.appendChild(cardEl);
-        this.draftPrompt.textContent = 'YOUR DRAFT TURN: KEEP OR DISCARD?';
-        this.draftActionButtons.style.display = 'flex';
-        this.draftWaitingMessage.style.display = 'none';
-      } else {
-        // Opponent only sees face-down card! Never revealed if discarded!
-        const cardEl = renderCardElement(null, { cardSize: 'large', faceDown: true });
-        this.draftCardContainer.appendChild(cardEl);
-        this.draftPrompt.textContent = `${activeDrafterName.toUpperCase()} IS INSPECTING A CARD...`;
-        this.draftActionButtons.style.display = 'none';
-        this.draftWaitingMessage.style.display = 'flex';
-        document.getElementById('draft-waiting-text').textContent = `${activeDrafterName} is deciding to keep or discard...`;
-      }
-    } else {
-      this.draftSpotlight.style.display = 'none';
-    }
-
-    // 7. Update Betting Action Controls
-    this.updateActionControls(state);
-  }
-
-  renderHoleCards(state) {
-    const isShowdown = state.phase === GAME_PHASES.SHOWDOWN || state.phase === GAME_PHASES.ROUND_OVER;
-    const localPlayer = state.players[this.localPlayerId];
-    const opponentPlayer = state.players[1 - this.localPlayerId];
-
-    // Local Player (Bottom Pod - ALWAYS Visible to Local Player)
+    // Player Cards (Bottom Pod)
     this.p0CardsContainer.innerHTML = '';
     localPlayer.holeCards.forEach(card => {
       const isBest = localPlayer.handEval && localPlayer.handEval.best5Cards && localPlayer.handEval.best5Cards.some(c => c && c.id === card.id);
@@ -702,7 +618,7 @@ class PokerDuelApp {
       this.p0CardsContainer.appendChild(cardEl);
     });
 
-    // Opponent (Top Pod - FACE DOWN during gameplay, revealed only at Showdown!)
+    // Opponent Cards (Top Pod)
     this.p1CardsContainer.innerHTML = '';
     opponentPlayer.holeCards.forEach(card => {
       const showFace = isShowdown || (this.mode === 'PASS_PLAY');
@@ -710,10 +626,51 @@ class PokerDuelApp {
       const cardEl = renderCardElement(card, { faceDown: !showFace, isHighlighted: isBest, cardSize: 'medium' });
       this.p1CardsContainer.appendChild(cardEl);
     });
+
+    // Drafting Spotlight
+    if (state.phase === 'DRAFTING') {
+      this.draftSpotlight.style.display = 'flex';
+      const isMyDraft = (this.mode === 'PASS_PLAY' || state.draftingPlayer === this.localPlayerId);
+      if (isMyDraft && state.currentDraftCard) {
+        this.draftPrompt.textContent = `${state.players[state.draftingPlayer].name}'s Pick: Card ${state.draftTurnCount}/4`;
+        this.draftCardContainer.innerHTML = '';
+        const draftEl = renderCardElement(state.currentDraftCard, { cardSize: 'large', faceDown: false });
+        this.draftCardContainer.appendChild(draftEl);
+        this.draftActionButtons.style.display = 'flex';
+        this.draftWaitingMessage.style.display = 'none';
+      } else {
+        this.draftPrompt.textContent = `${state.players[state.draftingPlayer].name} is choosing...`;
+        this.draftCardContainer.innerHTML = '';
+        const backEl = renderCardElement({ suit: 's', rank: 'A' }, { cardSize: 'large', faceDown: true });
+        this.draftCardContainer.appendChild(backEl);
+        this.draftActionButtons.style.display = 'none';
+        this.draftWaitingMessage.style.display = 'block';
+      }
+    } else {
+      this.draftSpotlight.style.display = 'none';
+    }
+
+    // Assist Meter
+    if (localPlayer.handEval) {
+      this.assistHandName.textContent = localPlayer.handEval.handName || 'High Card';
+      this.updateStrengthMeter(localPlayer.handEval.rankCategory || 0);
+    }
+
+    // Showdown Banner
+    if (isShowdown && state.winnerInfo) {
+      this.showdownBanner.style.display = 'flex';
+      this.showdownBannerTitle.textContent = state.winnerInfo.isTie ? 'SPLIT POT!' : `${state.winnerInfo.winnerName.toUpperCase()} WINS $${state.winnerInfo.potAmount}!`;
+      this.showdownBannerDesc.textContent = state.winnerInfo.winningHandName || '';
+    } else {
+      this.showdownBanner.style.display = 'none';
+    }
+
+    // Poker Action Controls
+    this.updatePokerActionControls(state);
   }
 
-  updateActionControls(state) {
-    const isBettingPhase = (state.phase === GAME_PHASES.PRE_DRAFT_BETTING || state.phase === GAME_PHASES.CARD_BETTING);
+  updatePokerActionControls(state) {
+    const isBettingPhase = (state.phase === 'PRE_DRAFT_BETTING' || state.phase === 'CARD_BETTING');
     const isMyTurn = isBettingPhase && (this.mode === 'PASS_PLAY' || state.activeTurnPlayer === this.localPlayerId);
 
     const activePlayer = state.players[this.localPlayerId];
@@ -724,14 +681,12 @@ class PokerDuelApp {
     this.btnBetRaise.disabled = !isMyTurn || activePlayer.chips <= 0;
     this.btnAllIn.disabled = !isMyTurn || activePlayer.chips <= 0;
 
-    // Button Labels
     if (callAmount <= 0) {
       this.btnCheckCall.textContent = 'CHECK';
     } else {
       this.btnCheckCall.textContent = `CALL $${Math.min(activePlayer.chips, callAmount)}`;
     }
 
-    // Slider bounds
     const min = Math.max(state.minRaise || state.currentBigBlind, state.currentBet + state.currentBigBlind);
     const max = activePlayer.chips + activePlayer.currentRoundBet;
 
@@ -750,19 +705,518 @@ class PokerDuelApp {
     this.btnBetRaise.textContent = `${actionName} $${val}`;
   }
 
+  handlePokerAction(type, amount = 0) {
+    SoundFX.play('button');
+    if (this.mode === 'ONLINE' && !this.isHost) {
+      this.network.send({ type: 'POKER_ACTION', action: type, amount });
+    } else {
+      this.pokerEngine.handlePlayerAction(this.localPlayerId, type, amount);
+    }
+  }
+
+  /* =========================================================================
+     GO FISH RENDERER (LIAR'S TRAP)
+     ========================================================================= */
+  renderGoFish(state) {
+    const localPlayer = state.players[this.localPlayerId];
+    const opponentPlayer = state.players[1 - this.localPlayerId];
+
+    this.p0Name.textContent = localPlayer.name;
+    this.p0Chips.textContent = `🏆 Books: ${localPlayer.books.length} (${localPlayer.books.join(', ') || 'None'})`;
+    this.p1Name.textContent = opponentPlayer.name;
+    this.p1Chips.textContent = `🏆 Books: ${opponentPlayer.books.length} (${opponentPlayer.books.join(', ') || 'None'})`;
+
+    // Active glow
+    if (state.activeTurnPlayer === this.localPlayerId) {
+      this.p0Pod.classList.add('active-turn');
+      this.p1Pod.classList.remove('active-turn');
+    } else {
+      this.p1Pod.classList.add('active-turn');
+      this.p0Pod.classList.remove('active-turn');
+    }
+
+    // Center Stage: Ocean Pond
+    this.centerArcadeStage.innerHTML = `
+      <div class="ocean-pond-container">
+        <div class="ocean-pond-graphic">🌊 🐟 🎣</div>
+        <div class="ocean-pond-count">Ocean Stock: <strong>${state.oceanDeck.length}</strong> cards remaining</div>
+        <div class="turn-announcement">${state.turnMessage || 'Ask your opponent for a matching card rank!'}</div>
+      </div>
+    `;
+
+    // Player Cards (Click to Ask)
+    this.p0CardsContainer.innerHTML = '';
+    const isMyTurn = (state.activeTurnPlayer === this.localPlayerId && state.phase === 'ASKING');
+
+    localPlayer.hand.forEach(card => {
+      const cardEl = renderCardElement(card, { cardSize: 'medium', faceDown: false });
+      if (isMyTurn) {
+        cardEl.style.cursor = 'pointer';
+        cardEl.title = `Ask for ${card.rank}s!`;
+        cardEl.classList.add('card-selectable');
+        cardEl.addEventListener('click', () => {
+          this.promptGoFishAsk(card.rank);
+        });
+      }
+      this.p0CardsContainer.appendChild(cardEl);
+    });
+
+    // Opponent Cards (Face Down)
+    this.p1CardsContainer.innerHTML = '';
+    opponentPlayer.hand.forEach(card => {
+      const cardEl = renderCardElement(card, { cardSize: 'medium', faceDown: true });
+      this.p1CardsContainer.appendChild(cardEl);
+    });
+
+    // Handle Opponent Asking You (Response Modal with Liar's Trap)
+    if (state.phase === 'WAITING_RESPONSE' && state.askedPlayerId === this.localPlayerId) {
+      this.showGoFishRespondModal(state.currentAskedRank, localPlayer);
+    }
+  }
+
+  promptGoFishAsk(rank) {
+    SoundFX.play('button');
+    if (this.mode === 'ONLINE' && !this.isHost) {
+      this.network.send({ type: 'GOFISH_ASK', askerId: this.localPlayerId, rank });
+    } else {
+      this.goFishEngine.askForRank(this.localPlayerId, rank);
+    }
+  }
+
+  showGoFishRespondModal(rank, player) {
+    const matchingCount = player.hand.filter(c => c.rank === rank).length;
+    const modalPrompt = document.getElementById('gofish-respond-prompt');
+    const btnGive = document.getElementById('btn-gofish-give');
+    const btnGoFish = document.getElementById('btn-gofish-claim');
+
+    if (modalPrompt) {
+      modalPrompt.innerHTML = `Dad asks: <strong>"Do you have any ${rank}s?"</strong><br><small>(You actually have ${matchingCount} of them)</small>`;
+    }
+    if (btnGive) {
+      btnGive.textContent = matchingCount > 0 ? `HONESTLY GIVE ${matchingCount} (${rank})` : `I DON'T HAVE ANY (HONEST)`;
+    }
+    if (btnGoFish) {
+      btnGoFish.textContent = matchingCount > 0 ? `CLAIM "GO FISH!" (BLUFF / RISK LIAR'S TRAP!)` : `TELL THEM TO "GO FISH!" 🎣`;
+    }
+
+    this.openModal('modal-gofish-respond');
+  }
+
+  /* =========================================================================
+     CRAZY EIGHTS RENDERER
+     ========================================================================= */
+  renderCrazy8s(state) {
+    const localPlayer = state.players[this.localPlayerId];
+    const opponentPlayer = state.players[1 - this.localPlayerId];
+
+    this.p0Name.textContent = localPlayer.name;
+    this.p0Chips.textContent = `🎴 Cards: ${localPlayer.hand.length}`;
+    this.p1Name.textContent = opponentPlayer.name;
+    this.p1Chips.textContent = `🎴 Cards: ${opponentPlayer.hand.length}`;
+
+    // Active Pod Glow
+    if (state.activeTurnPlayer === this.localPlayerId) {
+      this.p0Pod.classList.add('active-turn');
+      this.p1Pod.classList.remove('active-turn');
+    } else {
+      this.p1Pod.classList.add('active-turn');
+      this.p0Pod.classList.remove('active-turn');
+    }
+
+    // Center Stage: Draw Pile + Discard Pile
+    const topDiscard = state.discardPile[state.discardPile.length - 1];
+    const isMyTurn = (state.activeTurnPlayer === this.localPlayerId && state.phase === 'PLAY');
+
+    this.centerArcadeStage.innerHTML = '';
+    const crazy8Stage = document.createElement('div');
+    crazy8Stage.className = 'crazy8-center-container';
+
+    // Draw Stockpile
+    const drawDeckEl = document.createElement('div');
+    drawDeckEl.className = 'crazy8-stock-pile';
+    drawDeckEl.innerHTML = `
+      <div class="deck-count-badge">${state.stockPile.length} cards</div>
+    `;
+    const backCard = renderCardElement({ suit: 's', rank: 'A' }, { cardSize: 'medium', faceDown: true });
+    if (isMyTurn) {
+      backCard.style.cursor = 'pointer';
+      backCard.title = 'Click to Draw from Stock';
+      backCard.addEventListener('click', () => {
+        SoundFX.play('button');
+        this.crazy8Engine.drawFromStock(this.localPlayerId);
+      });
+    }
+    drawDeckEl.appendChild(backCard);
+
+    // Discard Pile
+    const discardPileEl = document.createElement('div');
+    discardPileEl.className = 'crazy8-discard-pile';
+    discardPileEl.innerHTML = `
+      <div class="active-suit-badge">Active Suit: ${getSuitSymbol(state.currentSuit)} ${state.currentSuit.toUpperCase()}</div>
+    `;
+    if (topDiscard) {
+      const discardCard = renderCardElement(topDiscard, { cardSize: 'medium', faceDown: false });
+      discardPileEl.appendChild(discardCard);
+    }
+
+    crazy8Stage.appendChild(drawDeckEl);
+    crazy8Stage.appendChild(discardPileEl);
+    this.centerArcadeStage.appendChild(crazy8Stage);
+
+    // Player Cards (Playable cards highlighted)
+    this.p0CardsContainer.innerHTML = '';
+    localPlayer.hand.forEach(card => {
+      const isValid = this.crazy8Engine.isValidPlay(card, topDiscard, state.currentSuit);
+      const cardEl = renderCardElement(card, {
+        cardSize: 'medium',
+        faceDown: false,
+        isHighlighted: isMyTurn && isValid
+      });
+
+      if (isMyTurn && isValid) {
+        cardEl.style.cursor = 'pointer';
+        cardEl.classList.add('card-playable-pulse');
+        cardEl.addEventListener('click', () => {
+          if (card.rank === '8') {
+            this.pendingCrazy8CardId = card.id;
+            this.openModal('modal-crazy8-suit');
+          } else {
+            this.crazy8Engine.playCard(this.localPlayerId, card.id);
+          }
+        });
+      }
+      this.p0CardsContainer.appendChild(cardEl);
+    });
+
+    // Opponent Cards (Face down)
+    this.p1CardsContainer.innerHTML = '';
+    opponentPlayer.hand.forEach(card => {
+      const cardEl = renderCardElement(card, { cardSize: 'medium', faceDown: true });
+      this.p1CardsContainer.appendChild(cardEl);
+    });
+
+    // Game Over Banner
+    if (state.phase === 'GAME_OVER' && state.winner) {
+      this.showGameOver(state.winner.name, `Won Crazy Eights by playing all cards!`);
+    }
+  }
+
+  /* =========================================================================
+     SPADES DUEL RENDERER
+     ========================================================================= */
+  renderSpades(state) {
+    const localPlayer = state.players[this.localPlayerId];
+    const opponentPlayer = state.players[1 - this.localPlayerId];
+
+    this.p0Name.textContent = localPlayer.name;
+    this.p0Chips.textContent = `♠️ Tricks: ${localPlayer.tricksWon}/${localPlayer.bid || 0} (Score: ${localPlayer.totalScore})`;
+    this.p1Name.textContent = opponentPlayer.name;
+    this.p1Chips.textContent = `♠️ Tricks: ${opponentPlayer.tricksWon}/${opponentPlayer.bid || 0} (Score: ${opponentPlayer.totalScore})`;
+
+    // Active Pod Glow
+    if (state.activeTurnPlayer === this.localPlayerId) {
+      this.p0Pod.classList.add('active-turn');
+      this.p1Pod.classList.remove('active-turn');
+    } else {
+      this.p1Pod.classList.add('active-turn');
+      this.p0Pod.classList.remove('active-turn');
+    }
+
+    // Spades Center Stage: Current Trick Area
+    this.centerArcadeStage.innerHTML = '';
+    const spadesStage = document.createElement('div');
+    spadesStage.className = 'spades-center-stage';
+    spadesStage.innerHTML = `
+      <div class="spades-status-ribbon">
+        ${state.spadesBroken ? '♠️ Spades are BROKEN!' : '🛡️ Spades not yet broken'}
+      </div>
+      <div class="spades-trick-cards" id="spades-trick-cards"></div>
+    `;
+    this.centerArcadeStage.appendChild(spadesStage);
+
+    const trickContainer = document.getElementById('spades-trick-cards');
+    if (state.currentTrick && state.currentTrick.length > 0 && trickContainer) {
+      state.currentTrick.forEach(trickEntry => {
+        const cardEl = renderCardElement(trickEntry.card, { cardSize: 'medium', faceDown: false });
+        const label = document.createElement('div');
+        label.className = 'trick-player-label';
+        label.textContent = state.players[trickEntry.playerId].name;
+        const wrapper = document.createElement('div');
+        wrapper.className = 'trick-card-wrapper';
+        wrapper.appendChild(label);
+        wrapper.appendChild(cardEl);
+        trickContainer.appendChild(wrapper);
+      });
+    }
+
+    // Drafting Phase
+    if (state.phase === 'DRAFTING') {
+      this.draftSpotlight.style.display = 'flex';
+      const isMyDraft = (state.draftingPlayer === this.localPlayerId);
+      if (isMyDraft && state.currentDraftCard) {
+        this.draftPrompt.textContent = `Spades Draft: Card ${state.draftTurnCount}/13`;
+        this.draftCardContainer.innerHTML = '';
+        const draftEl = renderCardElement(state.currentDraftCard, { cardSize: 'large', faceDown: false });
+        this.draftCardContainer.appendChild(draftEl);
+        this.draftActionButtons.style.display = 'flex';
+        this.draftWaitingMessage.style.display = 'none';
+      } else {
+        this.draftPrompt.textContent = `${state.players[state.draftingPlayer].name} is drafting...`;
+        this.draftCardContainer.innerHTML = '';
+        const backEl = renderCardElement({ suit: 's', rank: 'A' }, { cardSize: 'large', faceDown: true });
+        this.draftCardContainer.appendChild(backEl);
+        this.draftActionButtons.style.display = 'none';
+        this.draftWaitingMessage.style.display = 'block';
+      }
+    } else {
+      this.draftSpotlight.style.display = 'none';
+    }
+
+    // Bidding Phase Modal
+    if (state.phase === 'BIDDING' && state.activeTurnPlayer === this.localPlayerId) {
+      this.openModal('modal-spades-bid');
+    }
+
+    // Trick Playing Phase
+    this.p0CardsContainer.innerHTML = '';
+    const isMyTrickTurn = (state.phase === 'TRICK_PLAY' && state.activeTurnPlayer === this.localPlayerId);
+
+    localPlayer.hand.forEach(card => {
+      const isValid = this.spadesEngine.isValidSpadesPlay(card, localPlayer.hand, state.leadSuit, state.spadesBroken);
+      const cardEl = renderCardElement(card, { cardSize: 'medium', faceDown: false, isHighlighted: isMyTrickTurn && isValid });
+
+      if (isMyTrickTurn && isValid) {
+        cardEl.style.cursor = 'pointer';
+        cardEl.classList.add('card-playable-pulse');
+        cardEl.addEventListener('click', () => {
+          this.spadesEngine.playTrickCard(this.localPlayerId, card.id);
+        });
+      }
+      this.p0CardsContainer.appendChild(cardEl);
+    });
+
+    // Opponent Cards
+    this.p1CardsContainer.innerHTML = '';
+    opponentPlayer.hand.forEach(card => {
+      const cardEl = renderCardElement(card, { cardSize: 'medium', faceDown: true });
+      this.p1CardsContainer.appendChild(cardEl);
+    });
+  }
+
+  /* =========================================================================
+     AI BOT TURN DISPATCHER
+     ========================================================================= */
+  triggerAIIfNeeded() {
+    const state = this.getCurrentState();
+    if (!state) return;
+
+    if (this.activeGame === GAME_TYPES.POKER_DUEL) {
+      if (state.phase === 'DRAFTING' && state.draftingPlayer === 1) {
+        setTimeout(() => {
+          const action = this.pokerAI.decideDraftAction(state.currentDraftCard, state.players[1].holeCards);
+          if (action === 'KEEP') this.pokerEngine.playerKeepDraftCard(1);
+          else this.pokerEngine.playerDiscardDraftCard(1);
+        }, 600);
+      } else if ((state.phase === 'PRE_DRAFT_BETTING' || state.phase === 'CARD_BETTING') && state.activeTurnPlayer === 1) {
+        setTimeout(() => {
+          const action = this.pokerAI.decideBetAction(state, 1);
+          this.pokerEngine.handlePlayerAction(1, action.type, action.amount);
+        }, 800);
+      }
+    } else if (this.activeGame === GAME_TYPES.GO_FISH) {
+      if (state.phase === 'ASKING' && state.activeTurnPlayer === 1) {
+        setTimeout(() => {
+          const dadHand = state.players[1].hand;
+          if (dadHand.length > 0) {
+            const randomCard = dadHand[Math.floor(Math.random() * dadHand.length)];
+            this.goFishEngine.askForRank(1, randomCard.rank);
+          }
+        }, 900);
+      }
+    } else if (this.activeGame === GAME_TYPES.CRAZY_EIGHTS) {
+      if (state.phase === 'PLAY' && state.activeTurnPlayer === 1) {
+        setTimeout(() => {
+          this.crazy8Engine.aiPlayTurn(1);
+        }, 800);
+      }
+    } else if (this.activeGame === GAME_TYPES.SPADES) {
+      if (state.phase === 'DRAFTING' && state.draftingPlayer === 1) {
+        setTimeout(() => {
+          this.spadesEngine.aiDraftTurn(1);
+        }, 500);
+      } else if (state.phase === 'BIDDING' && state.activeTurnPlayer === 1) {
+        setTimeout(() => {
+          this.spadesEngine.aiBidTurn(1);
+        }, 600);
+      } else if (state.phase === 'TRICK_PLAY' && state.activeTurnPlayer === 1) {
+        setTimeout(() => {
+          this.spadesEngine.aiTrickTurn(1);
+        }, 700);
+      }
+    }
+  }
+
+  /* =========================================================================
+     HELPERS & MODALS
+     ========================================================================= */
+  updateStrengthMeter(categoryIndex) {
+    if (!this.meterSegments) return;
+    this.meterSegments.forEach((seg, idx) => {
+      if (idx <= categoryIndex) {
+        seg.className = `meter-segment cat-${categoryIndex}`;
+      } else {
+        seg.className = 'meter-segment';
+      }
+    });
+  }
+
+  openModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.style.display = 'flex';
+  }
+
+  closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.style.display = 'none';
+  }
+
   showToast(msg) {
-    const container = document.getElementById('toast-container');
+    const container = document.getElementById('toast-container') || document.body;
     const toast = document.createElement('div');
     toast.className = 'toast';
     toast.textContent = msg;
     container.appendChild(toast);
     setTimeout(() => {
       if (toast.parentNode) toast.parentNode.removeChild(toast);
-    }, 3000);
+    }, 3200);
+  }
+
+  updateRulesContent() {
+    const rulesBody = document.getElementById('rules-modal-body');
+    if (!rulesBody) return;
+
+    if (this.activeGame === GAME_TYPES.GO_FISH) {
+      rulesBody.innerHTML = `
+        <h3>🎣 Go Fish (with Liar's Trap)</h3>
+        <p>1. On your turn, ask your opponent for any rank you hold in your hand.</p>
+        <p>2. If they have it, they surrender all matching cards to you.</p>
+        <p>3. <strong>🚨 THE LIAR'S TRAP:</strong> If a player clicks "GO FISH!" but secretly holds the asked card, the automated referee instantly catches them! The liar surrenders the cards, takes 2 penalty cards, and reveals a card.</p>
+        <p>4. Collect all 4 cards of a rank to form a Book. Most books wins!</p>
+      `;
+    } else if (this.activeGame === GAME_TYPES.CRAZY_EIGHTS) {
+      rulesBody.innerHTML = `
+        <h3>🎴 Crazy Eights</h3>
+        <p>1. Match the top discard card by <strong>Rank</strong> or <strong>Food Suit</strong> (🍔 Burgers, 🍕 Pizzas, 🍒 Cherries, 🥦 Veggies).</p>
+        <p>2. <strong>All 8s are WILD!</strong> Play an 8 anytime to choose the active suit.</p>
+        <p>3. If you can't play, draw from the stockpile until you can.</p>
+        <p>4. First player to empty their hand wins!</p>
+      `;
+    } else if (this.activeGame === GAME_TYPES.SPADES) {
+      rulesBody.innerHTML = `
+        <h3>♠️ 2-Player Spades Duel</h3>
+        <p>1. <strong>Drafting Phase:</strong> Take turns looking at the top card. Keep it or discard face-down to take a mystery card.</p>
+        <p>2. <strong>Bidding:</strong> Predict how many tricks you will win (0 to 13).</p>
+        <p>3. <strong>Cosmic Jokers:</strong> Big Joker & Little Joker are the highest trumps in the deck!</p>
+        <p>4. Must follow lead suit. Spades cannot lead until Spades are broken.</p>
+      `;
+    } else {
+      rulesBody.innerHTML = `
+        <h3>🃏 2-Player Poker Duel</h3>
+        <p>1. Pre-Draft Betting: Blinds posted, initial betting round.</p>
+        <p>2. 4-Round Draft Phase: 1-card draft alternating keep/discard, followed by betting.</p>
+        <p>3. Best 5-card Texas Hold'em hand using your 2 hole cards + 5 community cards wins!</p>
+      `;
+    }
+  }
+
+  showGameOver(winnerName, description) {
+    if (this.gameOverTitle) this.gameOverTitle.textContent = `${winnerName.toUpperCase()} WINS!`;
+    if (this.gameOverDesc) this.gameOverDesc.textContent = description;
+    this.openModal('modal-game-over');
+    if (window.confetti) {
+      window.confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+    }
+  }
+
+  /* =========================================================================
+     NETWORK & URL SHARING
+     ========================================================================= */
+  checkUrlParams() {
+    const params = new URLSearchParams(window.location.search);
+    const room = params.get('room');
+    const game = params.get('game');
+
+    if (game && GAME_TYPES[game]) {
+      this.switchGame(game);
+    }
+
+    if (room) {
+      const code = room.toUpperCase();
+      this.network.joinRoom(code).then(() => {
+        this.mode = 'ONLINE';
+        this.isHost = false;
+        this.localPlayerId = 1;
+        this.closeModal('modal-welcome');
+        this.updateRoomBadge(code);
+      }).catch(err => {
+        this.showToast('Failed to join room from URL link');
+      });
+    } else {
+      this.openModal('modal-welcome');
+    }
+  }
+
+  showHostLobby(roomId) {
+    const hostLobby = document.getElementById('host-lobby-view');
+    const defaultOnline = document.getElementById('online-initial-view');
+    const roomCodeDisplay = document.getElementById('display-room-code');
+
+    if (hostLobby) hostLobby.style.display = 'block';
+    if (defaultOnline) defaultOnline.style.display = 'none';
+    if (roomCodeDisplay) roomCodeDisplay.textContent = roomId;
+    this.updateRoomBadge(roomId);
+  }
+
+  updateRoomBadge(code) {
+    if (this.roomBadge && this.roomBadgeText) {
+      this.roomBadge.style.display = 'flex';
+      this.roomBadgeText.innerHTML = `Room: <strong>${code}</strong>`;
+    }
+    if (this.btnShareRoom) this.btnShareRoom.style.display = 'inline-flex';
+  }
+
+  onNetworkConnected(info) {
+    this.showToast(`Connected to opponent! Starting match...`);
+    this.closeModal('modal-online-room');
+    if (this.isHost) {
+      this.startNewMatch();
+    }
+  }
+
+  onNetworkDisconnected() {
+    this.showToast('Opponent disconnected.');
+  }
+
+  onNetworkMessage(msg) {
+    if (!msg) return;
+    if (msg.type === 'SYNC_STATE') {
+      this.latestRemoteState = msg.state;
+      this.renderGameState(msg.state);
+    } else if (msg.type === 'POKER_ACTION' && this.isHost) {
+      this.pokerEngine.handlePlayerAction(1, msg.action, msg.amount);
+    } else if (msg.type === 'GOFISH_ASK' && this.isHost) {
+      this.goFishEngine.askForRank(1, msg.rank);
+    } else if (msg.type === 'REQUEST_NEXT_HAND' && this.isHost) {
+      this.getCurrentEngine().startNextRound();
+    }
+  }
+
+  onNetworkError(err) {
+    console.error('Network Error:', err);
   }
 }
 
-// Launch application on DOM load
+// Global initialization on DOM Ready
 window.addEventListener('DOMContentLoaded', () => {
-  window.app = new PokerDuelApp();
+  window.app = new FamilyCardArcadeApp();
 });
