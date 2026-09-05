@@ -242,39 +242,64 @@ class FamilyCardArcadeApp {
     }
 
     if (btnStartOnline) {
-      btnStartOnline.addEventListener('click', () => {
+      btnStartOnline.addEventListener('click', async () => {
         if (typeof SoundFX !== 'undefined') SoundFX.play('button');
         this.closeModal('modal-welcome');
         this.openModal('modal-online-room');
-      });
-    }
+        
+        const roomCodeDisplay = document.getElementById('display-room-code');
+        const roomStatusMsg = document.getElementById('room-status-message');
+        if (roomCodeDisplay) roomCodeDisplay.textContent = 'GENERATING...';
+        if (roomStatusMsg) roomStatusMsg.textContent = '⏳ Creating room on peer network...';
 
-    // Online Lobby Buttons
-    const btnCreateRoom = document.getElementById('btn-create-room');
-    const btnJoinRoom = document.getElementById('btn-confirm-join') || document.getElementById('btn-join-room');
-    const inputJoinCode = document.getElementById('input-join-code') || document.getElementById('input-room-code');
-
-    if (btnCreateRoom) {
-      btnCreateRoom.addEventListener('click', async () => {
-        btnCreateRoom.disabled = true;
-        btnCreateRoom.textContent = 'Generating Room...';
         try {
           const roomId = await this.network.createRoom();
           this.mode = 'ONLINE';
           this.isHost = true;
           this.localPlayerId = 0;
-          this.showHostLobby(roomId);
+          if (roomCodeDisplay) roomCodeDisplay.textContent = roomId;
+          if (roomStatusMsg) roomStatusMsg.textContent = `⏳ Waiting for your dad to join (Room: ${roomId})...`;
+          this.updateRoomBadge(roomId);
         } catch (err) {
-          alert('Could not create room: ' + err.message);
-          btnCreateRoom.disabled = false;
-          btnCreateRoom.textContent = 'Create New Room';
+          console.error('Room create error:', err);
+          if (roomCodeDisplay) roomCodeDisplay.textContent = 'ERROR';
+          if (roomStatusMsg) roomStatusMsg.textContent = '❌ Failed to connect to peer network: ' + (err.message || 'Unknown error');
         }
       });
     }
 
+    // Close Online Room Modal Button
+    const btnCloseRoomModal = document.getElementById('btn-close-room-modal');
+    if (btnCloseRoomModal) {
+      btnCloseRoomModal.addEventListener('click', () => {
+        if (typeof SoundFX !== 'undefined') SoundFX.play('button');
+        this.closeModal('modal-online-room');
+        this.openModal('modal-welcome');
+      });
+    }
+
+    // Copy Code / Share Link in Modal
+    const btnCopyCode = document.getElementById('btn-copy-code');
+    if (btnCopyCode) {
+      btnCopyCode.addEventListener('click', () => {
+        if (this.network.roomId) {
+          const url = `${window.location.origin}${window.location.pathname}?room=${this.network.roomId}&game=${this.activeGame}`;
+          navigator.clipboard.writeText(url).then(() => {
+            this.showToast('📋 Room invite link copied to clipboard!');
+          }).catch(() => {
+            prompt('Copy this room link to share:', url);
+          });
+        }
+      });
+    }
+
+    // Online Lobby Buttons
+    const btnJoinRoom = document.getElementById('btn-confirm-join') || document.getElementById('btn-join-room');
+    const inputJoinCode = document.getElementById('input-join-code') || document.getElementById('input-room-code');
+
     if (btnJoinRoom) {
       btnJoinRoom.addEventListener('click', async () => {
-        const code = inputJoinCode.value.trim().toUpperCase();
+        const code = (inputJoinCode ? inputJoinCode.value : '').trim().toUpperCase();
         if (!code) return alert('Please enter a 6-letter room code.');
         btnJoinRoom.disabled = true;
         btnJoinRoom.textContent = 'Connecting...';
@@ -285,21 +310,24 @@ class FamilyCardArcadeApp {
           this.localPlayerId = 1;
           this.closeModal('modal-online-room');
           this.updateRoomBadge(code);
+          this.showToast(`Connected to Room ${code}!`);
         } catch (err) {
           alert('Could not join room: ' + err.message);
           btnJoinRoom.disabled = false;
-          btnJoinRoom.textContent = 'Join Room';
+          btnJoinRoom.textContent = 'Join';
         }
       });
     }
 
-    // Share link
+    // Share link in Header
     if (this.btnShareRoom) {
       this.btnShareRoom.addEventListener('click', () => {
         if (this.network.roomId) {
           const url = `${window.location.origin}${window.location.pathname}?room=${this.network.roomId}&game=${this.activeGame}`;
           navigator.clipboard.writeText(url).then(() => {
-            this.showToast('Room invite link copied to clipboard!');
+            this.showToast('📋 Room invite link copied to clipboard!');
+          }).catch(() => {
+            prompt('Copy this room link to share:', url);
           });
         }
       });
