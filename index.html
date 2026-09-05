@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Family Card Arcade - Poker, Go Fish & Crazy 8s</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🃏</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>??</text></svg>">
   <link rel="stylesheet" href="css/styles.css">
   <!-- PeerJS bundled locally for 100% reliable zero-server P2P multiplayer -->
   <script src="js/peerjs.min.js"></script>
@@ -15,7 +15,7 @@
   <!-- Header / Navigation -->
   <header class="game-header">
     <div class="logo-area">
-      <span style="font-size: 1.4rem;" id="header-game-icon">🃏</span>
+      <span style="font-size: 1.4rem;" id="header-game-icon">??</span>
       <h1 class="logo-title" id="header-game-title">FAMILY CARD ARCADIA</h1>
       <div id="room-badge" class="room-badge" style="display: none;">
         <span class="status-dot"></span>
@@ -24,11 +24,11 @@
     </div>
 
     <div class="header-controls">
-      <button id="btn-toggle-theme" class="icon-btn" title="Toggle Deck Theme (Family Food / Classic)">🎨</button>
-      <button id="btn-share-room" class="icon-btn" title="Share Room Link" style="display: none;">🔗</button>
-      <button id="btn-toggle-sound" class="icon-btn" title="Toggle Sound">🔊</button>
-      <button id="btn-show-rules" class="icon-btn" title="Game Rules">❓</button>
-      <button id="btn-main-menu" class="icon-btn" title="Select Game">🎮</button>
+      <button id="btn-toggle-theme" class="icon-btn" title="Toggle Deck Theme (Family Food / Classic)">??</button>
+      <button id="btn-share-room" class="icon-btn" title="Share Room Link" style="display: none;">??</button>
+      <button id="btn-toggle-sound" class="icon-btn" title="Toggle Sound">??</button>
+      <button id="btn-show-rules" class="icon-btn" title="Game Rules">?</button>
+      <button id="btn-main-menu" class="icon-btn" title="Select Game">??</button>
     </div>
   </header>
 
@@ -40,11 +40,11 @@
       <div class="player-pod opponent-pod" id="opponent-pod">
         <div class="player-info-card" id="opponent-info-card">
           <div class="player-avatar avatar-dad">
-            <span id="opponent-avatar-icon">👨</span>
+            <span id="opponent-avatar-icon">??</span>
           </div>
           <div class="player-details">
             <span class="player-name" id="opponent-name">Dad</span>
-            <span class="player-chips" id="opponent-chips">💰 $1,000</span>
+            <span class="player-chips" id="opponent-chips">?? $1,000</span>
           </div>
         </div>
 
@@ -58,7 +58,7 @@
 
       <!-- Center Table Area -->
       <div class="table-center-area" id="table-center-area">
-        <div class="house-dealer-badge" id="house-dealer-badge">🏛️ Casino House Dealer</div>
+        <div class="house-dealer-badge" id="house-dealer-badge">??? Casino House Dealer</div>
         
         <div class="pot-display" id="pot-display-wrapper">
           <span class="pot-label" id="pot-label">Pot</span>
@@ -84,20 +84,20 @@
 
         <!-- Round / Blinds Info Ribbon -->
         <div style="font-size: 0.75rem; color: rgba(255,255,255,0.6); letter-spacing: 0.5px;" id="round-blinds-info">
-          Round 1 • Blinds: $10 / $20
+          Round 1 . Blinds: $10 / $20
         </div>
 
         <!-- On-Table Showdown / Victory Banner -->
         <div id="showdown-banner" class="showdown-banner" style="display: none;">
-          <div class="showdown-trophy">🏆</div>
+          <div class="showdown-trophy">??</div>
           <div class="showdown-title" id="showdown-banner-title">YOU WON $1,020!</div>
           <div class="showdown-desc" id="showdown-banner-desc">Flush (Queen High)</div>
-          <button id="btn-showdown-next" class="btn-primary btn-pulse" style="margin-top: 6px; width: auto; padding: 8px 24px;">▶ NEXT HAND</button>
+          <button id="btn-showdown-next" class="btn-primary btn-pulse" style="margin-top: 6px; width: auto; padding: 8px 24px;">? NEXT HAND</button>
         </div>
 
-        <!-- 🚨 BUSTED / CAUGHT IN A LIE BANNER -->
+        <!-- ?? BUSTED / CAUGHT IN A LIE BANNER -->
         <div id="busted-banner" class="busted-banner" style="display: none;">
-          <div class="busted-icon">🚨</div>
+          <div class="busted-icon">??</div>
           <div class="busted-title">CAUGHT IN A LIE!</div>
           <div class="busted-desc" id="busted-banner-desc">Dad lied about having 7s! Surrendered cards + drew 2 penalty cards!</div>
         </div>
@@ -111,8 +111,8 @@
         <div class="draft-info-side">
           <div class="draft-header" id="draft-prompt">DRAFT TURN: KEEP OR DISCARD?</div>
           <div class="draft-actions" id="draft-action-buttons">
-            <button id="btn-draft-keep" class="btn-keep">✅ KEEP</button>
-            <button id="btn-draft-discard" class="btn-discard">🗑️ DISCARD</button>
+            <button id="btn-draft-keep" class="btn-keep">? KEEP</button>
+            <button id="btn-draft-discard" class="btn-discard">??? DISCARD</button>
           </div>
           <div id="draft-waiting-message" class="draft-waiting" style="display: none;">
             <span class="status-dot"></span> <span id="draft-waiting-text">Opponent is deciding...</span>
@@ -124,11 +124,11 @@
       <div class="player-pod player-pod-bottom" id="player-pod">
         <div class="player-info-card active-turn" id="player-info-card">
           <div class="player-avatar">
-            <span>🤠</span>
+            <span>??</span>
           </div>
           <div class="player-details">
             <span class="player-name" id="player-name">You</span>
-            <span class="player-chips" id="player-chips">💰 $1,000</span>
+            <span class="player-chips" id="player-chips">?? $1,000</span>
           </div>
         </div>
 
@@ -146,7 +146,7 @@
     <section class="hand-assist-hud" id="poker-assist-hud">
       <div class="assist-header">
         <div class="assist-title-area">
-          <span style="color: #fbbf24; font-weight: 800; font-size: 0.85rem;">⚡ YOUR BEST HAND:</span>
+          <span style="color: #fbbf24; font-weight: 800; font-size: 0.85rem;">? YOUR BEST HAND:</span>
         </div>
         <div class="assist-hand-name" id="assist-hand-name">High Card (Ace High)</div>
       </div>
@@ -201,7 +201,7 @@
   <!-- Welcome / Game Selection Lobby Modal -->
   <div id="modal-welcome" class="modal-overlay active">
     <div class="modal-card" style="max-width: 480px;">
-      <h2 class="modal-title">🃏 FAMILY CARD ARCADIA</h2>
+      <h2 class="modal-title">?? FAMILY CARD ARCADIA</h2>
       <p class="modal-desc">
         Pick a card game to play with Dad online or practice vs DadBot!
       </p>
@@ -209,42 +209,42 @@
       <!-- Game Cards Grid -->
       <div class="game-select-grid">
         <div class="game-select-card selected" data-game="POKER_DUEL">
-          <div class="game-icon">🃏</div>
+          <div class="game-icon">??</div>
           <div class="game-info">
             <div class="game-name">Poker Duel</div>
-            <div class="game-subtitle">3 Hole Cards • 5 Community Draft • Assist HUD</div>
+            <div class="game-subtitle">3 Hole Cards . 5 Community Draft . Assist HUD</div>
           </div>
         </div>
 
         <div class="game-select-card" data-game="GO_FISH">
-          <div class="game-icon">🎣</div>
+          <div class="game-icon">??</div>
           <div class="game-info">
             <div class="game-name">Go Fish (Liar's Trap)</div>
-            <div class="game-subtitle">Ask for Cards • 🚨 Auto-Catch Lies & Penalties</div>
+            <div class="game-subtitle">Ask for Cards . ?? Auto-Catch Lies & Penalties</div>
           </div>
         </div>
 
         <div class="game-select-card" data-game="CRAZY_EIGHTS">
-          <div class="game-icon">🎴</div>
+          <div class="game-icon">??</div>
           <div class="game-info">
             <div class="game-name">Crazy Eights</div>
-            <div class="game-subtitle">Match Rank/Food Suits • Wild 8s • Empty Hand Wins</div>
+            <div class="game-subtitle">Match Rank/Food Suits . Wild 8s . Empty Hand Wins</div>
           </div>
         </div>
 
         <div class="game-select-card" data-game="SPADES">
-          <div class="game-icon">♠️</div>
+          <div class="game-icon">??</div>
           <div class="game-info">
             <div class="game-name">Spades Duel</div>
-            <div class="game-subtitle">2-Player Draft • Bid Tricks • Cosmic Jokers</div>
+            <div class="game-subtitle">2-Player Draft . Bid Tricks . Cosmic Jokers</div>
           </div>
         </div>
       </div>
 
       <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 16px;">
-        <button id="btn-start-online" class="btn-primary">🌐 Play Online with Dad</button>
-        <button id="btn-start-ai" class="btn-secondary" style="margin-top: 0;">🤖 Practice vs DadBot (AI)</button>
-        <button id="btn-start-pass" class="btn-secondary">👥 Pass & Play (Local 2-Player)</button>
+        <button id="btn-start-online" class="btn-primary">?? Play Online with Dad</button>
+        <button id="btn-start-ai" class="btn-secondary" style="margin-top: 0;">?? Practice vs DadBot (AI)</button>
+        <button id="btn-start-pass" class="btn-secondary">?? Pass & Play (Local 2-Player)</button>
       </div>
     </div>
   </div>
@@ -252,7 +252,7 @@
   <!-- Go Fish: Ask Rank Modal -->
   <div id="modal-gofish-ask" class="modal-overlay">
     <div class="modal-card" style="text-align: center;">
-      <h2 class="modal-title">🎣 Ask Dad for a Card</h2>
+      <h2 class="modal-title">?? Ask Dad for a Card</h2>
       <p class="modal-desc">Select a rank you hold in your hand to ask:</p>
       <div class="gofish-ranks-grid" id="gofish-ask-ranks-container">
         <!-- Rendered via JS -->
@@ -266,8 +266,8 @@
       <h2 class="modal-title" id="gofish-respond-title">Dad asks: "Do you have any 7s?"</h2>
       <p class="modal-desc">Choose your response (Warning: Liars will be caught & penalized!):</p>
       <div style="display: flex; gap: 10px; margin-top: 14px;">
-        <button id="btn-gofish-handover" class="btn-primary" style="background: linear-gradient(135deg, #10b981, #059669);">🤝 Here are my cards</button>
-        <button id="btn-gofish-claimfish" class="btn-primary" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8);">🎣 GO FISH!</button>
+        <button id="btn-gofish-handover" class="btn-primary" style="background: linear-gradient(135deg, #10b981, #059669);">?? Here are my cards</button>
+        <button id="btn-gofish-claimfish" class="btn-primary" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8);">?? GO FISH!</button>
       </div>
     </div>
   </div>
@@ -275,13 +275,13 @@
   <!-- Crazy Eights: Wild 8 Suit Chooser Modal -->
   <div id="modal-wild-suit" class="modal-overlay">
     <div class="modal-card" style="text-align: center;">
-      <h2 class="modal-title">★ Choose New Suit</h2>
+      <h2 class="modal-title">? Choose New Suit</h2>
       <p class="modal-desc">You played a Wild 8! Declare the active suit:</p>
       <div class="wild-suit-grid">
-        <button class="btn-wild-suit" data-suit="♠">🍔 Burgers (♠)</button>
-        <button class="btn-wild-suit" data-suit="♦">🍕 Pizzas (♦)</button>
-        <button class="btn-wild-suit" data-suit="♥">🍒 Cherries (♥)</button>
-        <button class="btn-wild-suit" data-suit="♣">🥦 Veggies (♣)</button>
+        <button class="btn-wild-suit" data-suit="?">?? Burgers (?)</button>
+        <button class="btn-wild-suit" data-suit="?">?? Pizzas (?)</button>
+        <button class="btn-wild-suit" data-suit="?">?? Cherries (?)</button>
+        <button class="btn-wild-suit" data-suit="?">?? Veggies (?)</button>
       </div>
     </div>
   </div>
@@ -289,7 +289,7 @@
   <!-- Spades: Bidding Modal -->
   <div id="modal-spades-bid" class="modal-overlay">
     <div class="modal-card" style="text-align: center;">
-      <h2 class="modal-title">♠️ Enter Your Trick Bid</h2>
+      <h2 class="modal-title">?? Enter Your Trick Bid</h2>
       <p class="modal-desc">How many of the 13 tricks will you win?</p>
       <div class="spades-bid-grid" id="spades-bid-buttons">
         <!-- 0 (Nil) to 13 buttons rendered via JS -->
@@ -300,17 +300,17 @@
   <!-- Online Room Host/Join Modal -->
   <div id="modal-online-room" class="modal-overlay">
     <div class="modal-card">
-      <button class="modal-close-btn" id="btn-close-room-modal">✕</button>
-      <h2 class="modal-title" id="room-modal-title">🌐 Online Multiplayer</h2>
+      <button class="modal-close-btn" id="btn-close-room-modal">?</button>
+      <h2 class="modal-title" id="room-modal-title">?? Online Multiplayer</h2>
       
       <div id="room-create-section">
         <p class="modal-desc">Share this room link or code with your dad to play together instantly:</p>
         <div class="room-share-box">
           <span class="room-code-display" id="display-room-code">------</span>
-          <button id="btn-copy-code" class="preset-chip" style="padding: 6px 12px;">📋 Copy Link</button>
+          <button id="btn-copy-code" class="preset-chip" style="padding: 6px 12px;">?? Copy Link</button>
         </div>
         <div style="text-align: center; margin-bottom: 15px; color: #94a3b8; font-size: 0.85rem;" id="room-status-message">
-          ⏳ Waiting for your dad to join...
+          ? Waiting for your dad to join...
         </div>
       </div>
 
@@ -327,22 +327,22 @@
   <!-- Champion / Game Over Duel Victory Modal -->
   <div id="modal-game-over" class="modal-overlay">
     <div class="modal-card" style="text-align: center; border-color: #fbbf24; box-shadow: 0 0 40px rgba(251, 191, 36, 0.5);">
-      <div style="font-size: 2.8rem; margin-bottom: 4px;">👑</div>
+      <div style="font-size: 2.8rem; margin-bottom: 4px;">??</div>
       <h2 class="modal-title" id="game-over-title" style="font-size: 1.4rem;">DAD WON THE DUEL!</h2>
       <p class="modal-desc" id="game-over-desc" style="font-size: 0.95rem; color: #fef08a; font-weight: 700; margin-bottom: 14px;">
         Victory celebration!
       </p>
 
-      <button id="btn-rematch" class="btn-primary btn-pulse" style="font-size: 1rem; padding: 12px 20px;">🔄 Play Rematch</button>
-      <button id="btn-game-over-menu" class="btn-secondary" style="margin-top: 8px;">🏠 Game Menu</button>
+      <button id="btn-rematch" class="btn-primary btn-pulse" style="font-size: 1rem; padding: 12px 20px;">?? Play Rematch</button>
+      <button id="btn-game-over-menu" class="btn-secondary" style="margin-top: 8px;">?? Game Menu</button>
     </div>
   </div>
 
   <!-- Game Rules Modal -->
   <div id="modal-rules" class="modal-overlay">
     <div class="modal-card">
-      <button class="modal-close-btn" id="btn-close-rules">✕</button>
-      <h2 class="modal-title" id="rules-title">📖 Game Rules</h2>
+      <button class="modal-close-btn" id="btn-close-rules">?</button>
+      <h2 class="modal-title" id="rules-title">?? Game Rules</h2>
       <div id="rules-content" style="color: #cbd5e1; font-size: 0.88rem; line-height: 1.5; display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto; padding-right: 6px;">
         <!-- Injected via JS based on selected game -->
       </div>

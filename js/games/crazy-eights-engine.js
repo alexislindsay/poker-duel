@@ -98,7 +98,7 @@ class CrazyEightsEngine {
         playerId,
         action: 'play_wild_8',
         card,
-        text: `★ ${player.name} played a WILD 8! Choosing new suit...`
+        text: `? ${player.name} played a WILD 8! Choosing new suit...`
       };
       this.phase = CRAZY_EIGHTS_PHASES.CHOOSE_SUIT;
       this.onEvent({ type: 'WILD_8_PLAYED', playerId, card });
@@ -200,7 +200,7 @@ class CrazyEightsEngine {
     this.phase = CRAZY_EIGHTS_PHASES.GAME_OVER;
     this.winner = winnerPlayer;
     this.lastAction = {
-      text: `👑 ${winnerPlayer.name.toUpperCase()} EMPTIED THEIR HAND AND WON CRAZY EIGHTS!`
+      text: `?? ${winnerPlayer.name.toUpperCase()} EMPTIED THEIR HAND AND WON CRAZY EIGHTS!`
     };
     this.onEvent({ type: 'CRAZY_EIGHTS_GAME_OVER', winner: winnerPlayer });
     this.notifyState();

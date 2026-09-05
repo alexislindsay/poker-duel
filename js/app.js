@@ -166,7 +166,7 @@ class FamilyCardArcadeApp {
         this.currentTheme = this.currentTheme === 'family_food' ? 'classic' : 'family_food';
         setDeckTheme(this.currentTheme);
         if (typeof SoundFX !== 'undefined') SoundFX.play('button');
-        this.showToast(`Switched to ${this.currentTheme === 'family_food' ? 'Family Food & The Johns 🍔' : 'Classic Vegas ♠️'} Deck!`);
+        this.showToast(`Switched to ${this.currentTheme === 'family_food' ? 'Family Food & The Johns ??' : 'Classic Vegas ??'} Deck!`);
         this.render();
       });
     }
@@ -175,7 +175,7 @@ class FamilyCardArcadeApp {
     if (this.btnToggleSound) {
       this.btnToggleSound.addEventListener('click', () => {
         const enabled = typeof SoundFX !== 'undefined' ? SoundFX.toggle() : true;
-        this.btnToggleSound.textContent = enabled ? '🔊' : '🔇';
+        this.btnToggleSound.textContent = enabled ? '??' : '??';
       });
     }
 
@@ -250,7 +250,7 @@ class FamilyCardArcadeApp {
         const roomCodeDisplay = document.getElementById('display-room-code');
         const roomStatusMsg = document.getElementById('room-status-message');
         if (roomCodeDisplay) roomCodeDisplay.textContent = 'GENERATING...';
-        if (roomStatusMsg) roomStatusMsg.textContent = '⏳ Creating room on peer network...';
+        if (roomStatusMsg) roomStatusMsg.textContent = '? Creating room on peer network...';
 
         try {
           const roomId = await this.network.createRoom();
@@ -258,12 +258,12 @@ class FamilyCardArcadeApp {
           this.isHost = true;
           this.localPlayerId = 0;
           if (roomCodeDisplay) roomCodeDisplay.textContent = roomId;
-          if (roomStatusMsg) roomStatusMsg.textContent = `⏳ Waiting for your dad to join (Room: ${roomId})...`;
+          if (roomStatusMsg) roomStatusMsg.textContent = `? Waiting for your dad to join (Room: ${roomId})...`;
           this.updateRoomBadge(roomId);
         } catch (err) {
           console.error('Room create error:', err);
           if (roomCodeDisplay) roomCodeDisplay.textContent = 'ERROR';
-          if (roomStatusMsg) roomStatusMsg.textContent = '❌ Failed to connect to peer network: ' + (err.message || 'Unknown error');
+          if (roomStatusMsg) roomStatusMsg.textContent = '? Failed to connect to peer network: ' + (err.message || 'Unknown error');
         }
       });
     }
@@ -285,7 +285,7 @@ class FamilyCardArcadeApp {
         if (this.network.roomId) {
           const url = `${window.location.origin}${window.location.pathname}?room=${this.network.roomId}&game=${this.activeGame}`;
           navigator.clipboard.writeText(url).then(() => {
-            this.showToast('📋 Room invite link copied to clipboard!');
+            this.showToast('?? Room invite link copied to clipboard!');
           }).catch(() => {
             prompt('Copy this room link to share:', url);
           });
@@ -325,7 +325,7 @@ class FamilyCardArcadeApp {
         if (this.network.roomId) {
           const url = `${window.location.origin}${window.location.pathname}?room=${this.network.roomId}&game=${this.activeGame}`;
           navigator.clipboard.writeText(url).then(() => {
-            this.showToast('📋 Room invite link copied to clipboard!');
+            this.showToast('?? Room invite link copied to clipboard!');
           }).catch(() => {
             prompt('Copy this room link to share:', url);
           });
@@ -367,10 +367,16 @@ class FamilyCardArcadeApp {
     }
 
     // Showdown Next Hand
+    // Showdown Next Hand / Rematch
     if (this.btnShowdownNext) {
       this.btnShowdownNext.addEventListener('click', () => {
         if (this.showdownBanner) this.showdownBanner.style.display = 'none';
-        if (this.mode === 'ONLINE' && !this.isHost) {
+        const state = this.getCurrentState();
+        const isDuelOver = (state && (state.phase === 'GAME_OVER' || (state.players && (state.players[0].chips <= 0 || state.players[1].chips <= 0))));
+        
+        if (isDuelOver) {
+          this.startNewMatch();
+        } else if (this.mode === 'ONLINE' && !this.isHost) {
           this.network.send({ type: 'REQUEST_NEXT_HAND' });
         } else {
           this.getCurrentEngine().startNextRound();
@@ -442,19 +448,19 @@ class FamilyCardArcadeApp {
     // Update Header
     switch (gameType) {
       case GAME_TYPES.GO_FISH:
-        if (this.headerGameIcon) this.headerGameIcon.textContent = '🎣';
+        if (this.headerGameIcon) this.headerGameIcon.textContent = '??';
         if (this.headerGameTitle) this.headerGameTitle.textContent = 'GO FISH (LIAR\'S TRAP)';
         break;
       case GAME_TYPES.CRAZY_EIGHTS:
-        if (this.headerGameIcon) this.headerGameIcon.textContent = '🎴';
+        if (this.headerGameIcon) this.headerGameIcon.textContent = '??';
         if (this.headerGameTitle) this.headerGameTitle.textContent = 'CRAZY EIGHTS';
         break;
       case GAME_TYPES.SPADES:
-        if (this.headerGameIcon) this.headerGameIcon.textContent = '♠️';
+        if (this.headerGameIcon) this.headerGameIcon.textContent = '??';
         if (this.headerGameTitle) this.headerGameTitle.textContent = 'SPADES DUEL';
         break;
       default:
-        if (this.headerGameIcon) this.headerGameIcon.textContent = '🃏';
+        if (this.headerGameIcon) this.headerGameIcon.textContent = '??';
         if (this.headerGameTitle) this.headerGameTitle.textContent = 'POKER DUEL';
         break;
     }
@@ -546,7 +552,7 @@ class FamilyCardArcadeApp {
         break;
       case 'BOOK_COMPLETED':
         if (typeof SoundFX !== 'undefined') SoundFX.play('chime');
-        this.showToast(`${event.playerName} completed a 4-of-a-kind Book of ${event.rank}s! 🏆`);
+        this.showToast(`${event.playerName} completed a 4-of-a-kind Book of ${event.rank}s! ??`);
         break;
       case 'CARD_PLAYED':
         if (typeof SoundFX !== 'undefined') SoundFX.play('card_slide');
@@ -566,7 +572,7 @@ class FamilyCardArcadeApp {
     this.bustedBanner.style.display = 'flex';
     this.bustedBanner.classList.add('busted-pulse');
     const msg = `${liarPlayer.name} secretly held ${stolenCards.length} matching card(s)! PENALTY: Surrendered + 2 Penalty Cards!`;
-    this.showToast(`🚨 ${msg}`);
+    this.showToast(`?? ${msg}`);
 
     setTimeout(() => {
       if (this.bustedBanner) {
@@ -612,9 +618,9 @@ class FamilyCardArcadeApp {
 
     // Info cards
     if (this.p0Name) this.p0Name.textContent = localPlayer.name;
-    if (this.p0Chips) this.p0Chips.textContent = `💰 $${localPlayer.chips}`;
+    if (this.p0Chips) this.p0Chips.textContent = `?? $${localPlayer.chips}`;
     if (this.p1Name) this.p1Name.textContent = opponentPlayer.name;
-    if (this.p1Chips) this.p1Chips.textContent = `💰 $${opponentPlayer.chips}`;
+    if (this.p1Chips) this.p1Chips.textContent = `?? $${opponentPlayer.chips}`;
 
     // Active Pod Glow
     if (state.activeTurnPlayer === this.localPlayerId) {
@@ -639,7 +645,7 @@ class FamilyCardArcadeApp {
     if (this.potAmount) this.potAmount.textContent = `$${state.pot}`;
     const small = state.currentSmallBlind || (state.blindLevel ? state.blindLevel.small : 10);
     const big = state.currentBigBlind || (state.blindLevel ? state.blindLevel.big : 20);
-    if (this.roundBlindsInfo) this.roundBlindsInfo.textContent = `Round ${state.roundNumber || 1} • Blinds: $${small} / $${big}`;
+    if (this.roundBlindsInfo) this.roundBlindsInfo.textContent = `Round ${state.roundNumber || 1} . Blinds: $${small} / $${big}`;
 
     // Community Cards (5 slots)
     for (let i = 0; i < 5; i++) {
@@ -720,8 +726,18 @@ class FamilyCardArcadeApp {
     // Showdown Banner
     if (isShowdown && state.winnerInfo) {
       if (this.showdownBanner) this.showdownBanner.style.display = 'flex';
-      if (this.showdownBannerTitle) this.showdownBannerTitle.textContent = state.winnerInfo.isTie ? 'SPLIT POT!' : `${state.winnerInfo.winnerName.toUpperCase()} WINS $${state.winnerInfo.potAmount}!`;
-      if (this.showdownBannerDesc) this.showdownBannerDesc.textContent = state.winnerInfo.winningHandName || '';
+      const isDuelOver = (state.phase === 'GAME_OVER' || (state.players && (state.players[0].chips <= 0 || state.players[1].chips <= 0)));
+      
+      if (isDuelOver) {
+        const champName = state.gameWinner ? state.gameWinner.name.toUpperCase() : (state.players[0].chips > 0 ? state.players[0].name.toUpperCase() : state.players[1].name.toUpperCase());
+        if (this.showdownBannerTitle) this.showdownBannerTitle.textContent = `${champName} WINS THE DUEL!`;
+        if (this.showdownBannerDesc) this.showdownBannerDesc.textContent = state.winReason || 'All chips collected!';
+        if (this.btnShowdownNext) this.btnShowdownNext.textContent = '?? PLAY REMATCH';
+      } else {
+        if (this.showdownBannerTitle) this.showdownBannerTitle.textContent = state.winnerInfo.isTie ? 'SPLIT POT!' : `${state.winnerInfo.winnerName.toUpperCase()} WINS $${state.winnerInfo.potAmount}!`;
+        if (this.showdownBannerDesc) this.showdownBannerDesc.textContent = state.winnerInfo.winningHandName || '';
+        if (this.btnShowdownNext) this.btnShowdownNext.textContent = '? NEXT HAND';
+      }
     } else {
       if (this.showdownBanner) this.showdownBanner.style.display = 'none';
     }
@@ -788,9 +804,9 @@ class FamilyCardArcadeApp {
     const opponentPlayer = state.players[1 - this.localPlayerId];
 
     if (this.p0Name) this.p0Name.textContent = localPlayer.name;
-    if (this.p0Chips) this.p0Chips.textContent = `🏆 Books: ${localPlayer.books.length} (${localPlayer.books.join(', ') || 'None'})`;
+    if (this.p0Chips) this.p0Chips.textContent = `?? Books: ${localPlayer.books.length} (${localPlayer.books.join(', ') || 'None'})`;
     if (this.p1Name) this.p1Name.textContent = opponentPlayer.name;
-    if (this.p1Chips) this.p1Chips.textContent = `🏆 Books: ${opponentPlayer.books.length} (${opponentPlayer.books.join(', ') || 'None'})`;
+    if (this.p1Chips) this.p1Chips.textContent = `?? Books: ${opponentPlayer.books.length} (${opponentPlayer.books.join(', ') || 'None'})`;
 
     // Active glow
     if (state.activeTurnPlayer === this.localPlayerId) {
@@ -805,7 +821,7 @@ class FamilyCardArcadeApp {
     if (this.centerArcadeStage) {
       this.centerArcadeStage.innerHTML = `
         <div class="ocean-pond-container">
-          <div class="ocean-pond-graphic">🌊 🐟 🎣</div>
+          <div class="ocean-pond-graphic">?? ?? ??</div>
           <div class="ocean-pond-count">Ocean Stock: <strong>${state.oceanDeck.length}</strong> cards remaining</div>
           <div class="turn-announcement">${state.turnMessage || (state.activeTurnPlayer === this.localPlayerId ? 'Your turn! Click a card below to ask Dad!' : 'Dad is thinking...')}</div>
         </div>
@@ -865,10 +881,10 @@ class FamilyCardArcadeApp {
       modalPrompt.innerHTML = `Dad asks: <strong>"Do you have any ${rank}s?"</strong><br><small style="font-size: 0.8rem; color: #facc15;">(You hold ${matchingCount} of them)</small>`;
     }
     if (btnGive) {
-      btnGive.textContent = matchingCount > 0 ? `🤝 HERE ARE MY ${matchingCount} ${rank}(s)` : `I DON'T HAVE ANY (HONEST)`;
+      btnGive.textContent = matchingCount > 0 ? `?? HERE ARE MY ${matchingCount} ${rank}(s)` : `I DON'T HAVE ANY (HONEST)`;
     }
     if (btnGoFish) {
-      btnGoFish.textContent = matchingCount > 0 ? `CLAIM "GO FISH!" (RISK LIAR'S TRAP!)` : `TELL DAD TO "GO FISH!" 🎣`;
+      btnGoFish.textContent = matchingCount > 0 ? `CLAIM "GO FISH!" (RISK LIAR'S TRAP!)` : `TELL DAD TO "GO FISH!" ??`;
     }
 
     this.openModal('modal-gofish-respond');
@@ -882,9 +898,9 @@ class FamilyCardArcadeApp {
     const opponentPlayer = state.players[1 - this.localPlayerId];
 
     if (this.p0Name) this.p0Name.textContent = localPlayer.name;
-    if (this.p0Chips) this.p0Chips.textContent = `🎴 Cards: ${localPlayer.hand.length}`;
+    if (this.p0Chips) this.p0Chips.textContent = `?? Cards: ${localPlayer.hand.length}`;
     if (this.p1Name) this.p1Name.textContent = opponentPlayer.name;
-    if (this.p1Chips) this.p1Chips.textContent = `🎴 Cards: ${opponentPlayer.hand.length}`;
+    if (this.p1Chips) this.p1Chips.textContent = `?? Cards: ${opponentPlayer.hand.length}`;
 
     // Active Pod Glow
     if (state.activeTurnPlayer === this.localPlayerId) {
@@ -987,9 +1003,9 @@ class FamilyCardArcadeApp {
     const opponentPlayer = state.players[1 - this.localPlayerId];
 
     if (this.p0Name) this.p0Name.textContent = localPlayer.name;
-    if (this.p0Chips) this.p0Chips.textContent = `♠️ Tricks: ${localPlayer.tricksWon}/${localPlayer.bid || 0} (Score: ${localPlayer.totalScore})`;
+    if (this.p0Chips) this.p0Chips.textContent = `?? Tricks: ${localPlayer.tricksWon}/${localPlayer.bid || 0} (Score: ${localPlayer.totalScore})`;
     if (this.p1Name) this.p1Name.textContent = opponentPlayer.name;
-    if (this.p1Chips) this.p1Chips.textContent = `♠️ Tricks: ${opponentPlayer.tricksWon}/${opponentPlayer.bid || 0} (Score: ${opponentPlayer.totalScore})`;
+    if (this.p1Chips) this.p1Chips.textContent = `?? Tricks: ${opponentPlayer.tricksWon}/${opponentPlayer.bid || 0} (Score: ${opponentPlayer.totalScore})`;
 
     // Active Pod Glow
     if (state.activeTurnPlayer === this.localPlayerId) {
@@ -1007,7 +1023,7 @@ class FamilyCardArcadeApp {
       spadesStage.className = 'spades-center-stage';
       spadesStage.innerHTML = `
         <div class="spades-status-ribbon">
-          ${state.spadesBroken ? '♠️ Spades are BROKEN!' : '🛡️ Spades not yet broken'}
+          ${state.spadesBroken ? '?? Spades are BROKEN!' : '??? Spades not yet broken'}
         </div>
         <div class="spades-trick-cards" id="spades-trick-cards"></div>
       `;
@@ -1246,23 +1262,23 @@ class FamilyCardArcadeApp {
 
     if (this.activeGame === GAME_TYPES.GO_FISH) {
       rulesBody.innerHTML = `
-        <h3 style="color: #60a5fa;">🎣 Go Fish (with Liar's Trap)</h3>
+        <h3 style="color: #60a5fa;">?? Go Fish (with Liar's Trap)</h3>
         <p>1. On your turn, ask your opponent for any rank you hold in your hand.</p>
         <p>2. If they have it, they surrender all matching cards to you.</p>
-        <p>3. <strong style="color: #ef4444;">🚨 THE LIAR'S TRAP:</strong> If a player clicks "GO FISH!" but secretly holds the asked card, the automated referee instantly catches them! The liar surrenders the cards, takes 2 penalty cards, and reveals a card.</p>
+        <p>3. <strong style="color: #ef4444;">?? THE LIAR'S TRAP:</strong> If a player clicks "GO FISH!" but secretly holds the asked card, the automated referee instantly catches them! The liar surrenders the cards, takes 2 penalty cards, and reveals a card.</p>
         <p>4. Collect all 4 cards of a rank to form a Book. Most books wins!</p>
       `;
     } else if (this.activeGame === GAME_TYPES.CRAZY_EIGHTS) {
       rulesBody.innerHTML = `
-        <h3 style="color: #facc15;">🎴 Crazy Eights</h3>
-        <p>1. Match the top discard card by <strong>Rank</strong> or <strong>Food Suit</strong> (🍔 Burgers, 🍕 Pizzas, 🍒 Cherries, 🥦 Veggies).</p>
+        <h3 style="color: #facc15;">?? Crazy Eights</h3>
+        <p>1. Match the top discard card by <strong>Rank</strong> or <strong>Food Suit</strong> (?? Burgers, ?? Pizzas, ?? Cherries, ?? Veggies).</p>
         <p>2. <strong>All 8s are WILD!</strong> Play an 8 anytime to choose the active suit.</p>
         <p>3. If you can't play, draw from the stockpile until you can.</p>
         <p>4. First player to empty their hand wins!</p>
       `;
     } else if (this.activeGame === GAME_TYPES.SPADES) {
       rulesBody.innerHTML = `
-        <h3 style="color: #a855f7;">♠️ 2-Player Spades Duel</h3>
+        <h3 style="color: #a855f7;">?? 2-Player Spades Duel</h3>
         <p>1. <strong>Drafting Phase:</strong> Take turns looking at the top card. Keep it or discard face-down to take a mystery card.</p>
         <p>2. <strong>Bidding:</strong> Predict how many tricks you will win (0 to 13).</p>
         <p>3. <strong>Cosmic Jokers:</strong> Big Joker & Little Joker are the highest trumps in the deck!</p>
@@ -1270,7 +1286,7 @@ class FamilyCardArcadeApp {
       `;
     } else {
       rulesBody.innerHTML = `
-        <h3 style="color: #fbbf24;">🃏 2-Player Poker Duel</h3>
+        <h3 style="color: #fbbf24;">?? 2-Player Poker Duel</h3>
         <p>1. Pre-Draft Betting: Blinds posted, initial betting round.</p>
         <p>2. 4-Round Draft Phase: 1-card draft alternating keep/discard, followed by betting.</p>
         <p>3. Best 5-card Texas Hold'em hand using your 2 hole cards + 5 community cards wins!</p>

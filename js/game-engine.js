@@ -403,7 +403,7 @@ class GameEngine {
     if (this.players[0].chips <= 0 || this.players[1].chips <= 0) {
       this.phase = GAME_PHASES.GAME_OVER;
       this.gameWinner = this.players[0].chips > 0 ? this.players[0] : this.players[1];
-      this.winReason = `👑 ${this.gameWinner.name.toUpperCase()} WON THE DUEL! All $${this.initialChips * 2} in chips collected!`;
+      this.winReason = `?? ${this.gameWinner.name.toUpperCase()} WON THE DUEL! All $${this.initialChips * 2} in chips collected!`;
       this.onEvent({
         type: 'DUEL_GAME_OVER',
         winner: this.gameWinner,
@@ -473,7 +473,7 @@ class GameEngine {
     if (this.players[0].chips <= 0 || this.players[1].chips <= 0) {
       this.phase = GAME_PHASES.GAME_OVER;
       this.gameWinner = this.players[0].chips > 0 ? this.players[0] : this.players[1];
-      this.winReason = `👑 ${this.gameWinner.name.toUpperCase()} WON THE DUEL! All $${this.initialChips * 2} in chips collected!`;
+      this.winReason = `?? ${this.gameWinner.name.toUpperCase()} WON THE DUEL! All $${this.initialChips * 2} in chips collected!`;
       this.onEvent({
         type: 'DUEL_GAME_OVER',
         winner: this.gameWinner,
