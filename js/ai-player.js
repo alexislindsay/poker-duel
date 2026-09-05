@@ -67,66 +67,120 @@ class DadBotAI {
     const currentBet = gameState.currentBet || 0;
     const aiCallAmount = currentBet - (ai.currentRoundBet || 0);
     const pot = gameState.pot || 0;
+    const bb = gameState.currentBigBlind || 20;
+    const sb = gameState.currentSmallBlind || 10;
 
     const hole = (ai.holeCards || []).filter(c => c && typeof c.value === 'number');
     const comm = (gameState.communityCards || []).filter(c => c && typeof c.value === 'number');
     const allAiCards = [...hole, ...comm];
     const handEval = PokerEvaluator.evaluateBestHand(allAiCards);
-    const strength = (handEval && handEval.level) ? (handEval.level * 10) : 10; // 10 to 100
+    const isPreDraft = (gameState.phase === 'PRE_DRAFT_BETTING' || comm.length === 0);
 
-    // No bet to call (can Check or Bet)
+    // Calculate Card Quality for 3 Hole Cards during Pre-Draft
+    let preDraftPotential = 0;
+    if (hole.length > 0) {
+      const maxVal = Math.max(...hole.map(c => c.value));
+      const hasAce = hole.some(c => c.value === 14);
+      const hasKing = hole.some(c => c.value === 13);
+      const hasQueen = hole.some(c => c.value === 12);
+      const hasPair = (new Set(hole.map(c => c.value)).size < hole.length);
+      const suitCounts = {};
+      hole.forEach(c => { suitCounts[c.suit] = (suitCounts[c.suit] || 0) + 1; });
+      const maxSuited = Math.max(...Object.values(suitCounts));
+
+      if (hasPair) preDraftPotential += 45; // Pocket pair is huge in pre-draft
+      if (hasAce) preDraftPotential += 25;
+      if (hasKing) preDraftPotential += 18;
+      if (hasQueen) preDraftPotential += 12;
+      if (maxSuited >= 2) preDraftPotential += 15;
+      if (maxVal >= 9) preDraftPotential += 10;
+    }
+
+    const strength = isPreDraft 
+      ? Math.max(preDraftPotential, (handEval && handEval.level) ? handEval.level * 15 : 15) 
+      : ((handEval && handEval.level) ? handEval.level * 10 : 10);
+
+    // 1. NO BET TO CALL (Can Check or Bet/Raise)
     if (aiCallAmount <= 0) {
-      const minRaiseTarget = currentBet > 0 ? (currentBet + gameState.currentBigBlind) : gameState.currentBigBlind;
-      const maxChips = ai.chips + ai.currentRoundBet;
+      const minRaiseTarget = currentBet > 0 ? (currentBet + bb) : bb;
+      const maxChips = ai.chips + (ai.currentRoundBet || 0);
 
-      if (strength >= 60 && ai.chips >= gameState.currentBigBlind) {
-        // Monster / High strength: Value Bet or raise
+      if (isPreDraft) {
+        if (strength >= 45 && Math.random() < 0.65) {
+          const target = Math.min(maxChips, currentBet + bb);
+          return { action: 'raise', amount: target };
+        } else if (Math.random() < 0.25 && ai.chips >= bb) {
+          const target = Math.min(maxChips, currentBet + bb);
+          return { action: 'raise', amount: target };
+        }
+        return { action: 'check' };
+      }
+
+      // Post-draft betting
+      if (strength >= 60 && ai.chips >= bb) {
         const targetAmount = Math.min(maxChips, Math.max(minRaiseTarget, currentBet + Math.floor(pot * 0.5)));
         return { action: 'raise', amount: targetAmount };
-      } else if (strength >= 35 && Math.random() < 0.4 && ai.chips >= gameState.currentBigBlind) {
-        // Medium strength: Occasional lead bet/raise
+      } else if (strength >= 30 && Math.random() < 0.45 && ai.chips >= bb) {
         const targetAmount = Math.min(maxChips, minRaiseTarget);
         return { action: 'raise', amount: targetAmount };
-      } else if (Math.random() < 0.15 && ai.chips >= gameState.currentBigBlind) {
-        // Occasional bluff
+      } else if (Math.random() < 0.20 && ai.chips >= bb) {
         const targetAmount = Math.min(maxChips, minRaiseTarget);
         return { action: 'raise', amount: targetAmount };
       }
       return { action: 'check' };
     }
 
-    // Facing a Bet / Raise (aiCallAmount > 0)
-    // All-in situation check
-    const isAllInCall = aiCallAmount >= ai.chips;
-
-    if (strength >= 75) {
-      // Very strong (Full House, Flush, Straight, Trips) -> Re-raise or Call
-      if (Math.random() < 0.5 && ai.chips > aiCallAmount * 2) {
-        const raiseAmount = Math.min(ai.chips, currentBet + gameState.currentBigBlind * 2);
-        return { action: 'raise', amount: raiseAmount };
+    // 2. FACING A BET / RAISE (aiCallAmount > 0)
+    if (isPreDraft) {
+      // In Pre-draft, Dad is curious and wants to draft cards!
+      // Calls standard opening raises (up to 3x-4x BB) with high willingness
+      if (aiCallAmount <= bb * 3) {
+        if (strength >= 15 || Math.random() < 0.85) {
+          return { action: 'call' };
+        }
       }
-      return { action: 'call' };
-    }
-
-    if (strength >= 40) {
-      // Good hand (Pair/Two Pair): Call reasonable bets
-      if (aiCallAmount <= gameState.currentBigBlind * 4 || aiCallAmount <= pot * 0.4) {
-        return { action: 'call' };
+      // If user went big pre-draft
+      if (aiCallAmount <= bb * 6) {
+        if (strength >= 35 || Math.random() < 0.55) {
+          return { action: 'call' };
+        }
       }
-      // If bet is huge, fold unless high strength
-      return Math.random() < 0.5 ? { action: 'call' } : { action: 'fold' };
-    }
-
-    if (strength >= 20) {
-      // Low Pair / High Card: Call small blind bets
-      if (aiCallAmount <= gameState.currentBigBlind * 1.5) {
+      // Strong pre-draft hand re-raise
+      if (strength >= 50 && Math.random() < 0.4) {
+        const reRaise = Math.min(ai.chips, currentBet + bb);
+        return { action: 'raise', amount: reRaise };
+      }
+      if (strength >= 25 || Math.random() < 0.45) {
         return { action: 'call' };
       }
       return { action: 'fold' };
     }
 
-    // Weak hand (High card only): Fold to bets unless tiny
-    if (aiCallAmount <= gameState.currentSmallBlind) {
+    // Post-Draft facing bet/raise:
+    if (strength >= 70) {
+      if (Math.random() < 0.55 && ai.chips > aiCallAmount * 2) {
+        const raiseAmount = Math.min(ai.chips, currentBet + bb * 2);
+        return { action: 'raise', amount: raiseAmount };
+      }
+      return { action: 'call' };
+    }
+
+    if (strength >= 35) {
+      if (aiCallAmount <= bb * 5 || aiCallAmount <= pot * 0.5) {
+        return { action: 'call' };
+      }
+      return Math.random() < 0.6 ? { action: 'call' } : { action: 'fold' };
+    }
+
+    if (strength >= 20) {
+      if (aiCallAmount <= bb * 2 || aiCallAmount <= pot * 0.3) {
+        return { action: 'call' };
+      }
+      return Math.random() < 0.4 ? { action: 'call' } : { action: 'fold' };
+    }
+
+    // Weak hand
+    if (aiCallAmount <= bb || Math.random() < 0.25) {
       return { action: 'call' };
     }
 

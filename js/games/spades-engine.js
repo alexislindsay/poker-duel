@@ -111,7 +111,7 @@ class SpadesEngine {
   }
 
   sortHands() {
-    const suitOrder = { '♠': 4, '♥': 3, '♦': 2, '♣': 1, 'BIG': 5, 'LITTLE': 5 };
+    const suitOrder = { '?': 4, '?': 3, '?': 2, '?': 1, 'BIG': 5, 'LITTLE': 5 };
     for (const p of this.players) {
       p.hand.sort((a, b) => {
         const sA = suitOrder[a.suit] || 0;
@@ -147,7 +147,7 @@ class SpadesEngine {
   }
 
   isSpadeOrTrump(card) {
-    return card.suit === '♠' || card.rank === 'JOKER';
+    return card.suit === '?' || card.rank === 'JOKER';
   }
 
   isValidCardPlay(playerId, card) {
@@ -170,12 +170,12 @@ class SpadesEngine {
     const leadCard = this.currentTrick[0].card;
     const leadSuit = leadCard.suit;
 
-    if (leadSuit === '♠' || leadCard.rank === 'JOKER') {
+    if (leadSuit === '?' || leadCard.rank === 'JOKER') {
       // Lead was a Spade/Trump -> must play Spade/Trump if held
       const hasTrump = player.hand.some(c => this.isSpadeOrTrump(c));
       if (hasTrump && !this.isSpadeOrTrump(card)) return false;
     } else {
-      // Lead was a regular suit (♥, ♦, ♣)
+      // Lead was a regular suit (?, ?, ?)
       const hasLeadSuit = player.hand.some(c => c.suit === leadSuit && c.rank !== 'JOKER');
       if (hasLeadSuit && card.suit !== leadSuit) return false; // Strict Anti-Reneging Check!
     }
@@ -230,7 +230,7 @@ class SpadesEngine {
     } else if (!isTrump1 && isTrump2) {
       winnerPlayerId = play2.playerId;
     } else if (isTrump1 && isTrump2) {
-      // Both trumps: compare value (Big Joker > Little Joker > A♠ > K♠ ...)
+      // Both trumps: compare value (Big Joker > Little Joker > A? > K? ...)
       winnerPlayerId = (c1.value >= c2.value) ? play1.playerId : play2.playerId;
     } else {
       // Neither trump: if second player followed suit and had higher rank, they win; otherwise leader wins
@@ -245,7 +245,7 @@ class SpadesEngine {
     winner.tricksWon++;
 
     this.lastAction = {
-      text: `🏆 ${winner.name} won Trick ${this.trickNumber}!`
+      text: `?? ${winner.name} won Trick ${this.trickNumber}!`
     };
 
     this.onEvent({ type: 'TRICK_RESOLVED', winnerId: winnerPlayerId, trickNumber: this.trickNumber });
@@ -290,7 +290,7 @@ class SpadesEngine {
     }
 
     this.lastAction = {
-      text: `👑 SPADES MATCH FINISHED! ${this.winner ? this.winner.name + ' WINS!' : 'IT IS A TIE!'}`
+      text: `?? SPADES MATCH FINISHED! ${this.winner ? this.winner.name + ' WINS!' : 'IT IS A TIE!'}`
     };
 
     this.onEvent({ type: 'SPADES_GAME_OVER', winner: this.winner });
