@@ -424,28 +424,39 @@ class GameEngine {
     const p1Eval = this.players[1].handEval;
 
     const cmp = PokerEvaluator.compare(p0Eval, p1Eval);
+    let winnerId = -1;
 
     if (cmp > 0) {
       // Player 0 Wins
+      winnerId = 0;
       this.players[0].chips += this.pot;
       this.roundWinner = this.players[0];
       this.potWonAmount = this.pot;
-      this.winReason = `${this.players[0].name} wins $${this.pot} with ${p0Eval.name}!`;
+      this.winReason = `${this.players[0].name} wins $${this.pot} with ${p0Eval ? p0Eval.name : 'High Card'}!`;
     } else if (cmp < 0) {
       // Player 1 Wins
+      winnerId = 1;
       this.players[1].chips += this.pot;
       this.roundWinner = this.players[1];
       this.potWonAmount = this.pot;
-      this.winReason = `${this.players[1].name} wins $${this.pot} with ${p1Eval.name}!`;
+      this.winReason = `${this.players[1].name} wins $${this.pot} with ${p1Eval ? p1Eval.name : 'High Card'}!`;
     } else {
       // Split Pot
+      winnerId = -1;
       const split = Math.floor(this.pot / 2);
       this.players[0].chips += split;
       this.players[1].chips += (this.pot - split);
       this.roundWinner = 'SPLIT';
       this.potWonAmount = split;
-      this.winReason = `Split pot! Both have ${p0Eval.name}! ($${split} each)`;
+      this.winReason = `Split pot! Both hold matching hands! ($${split} each)`;
     }
+
+    this.onEvent({
+      type: 'POT_WON',
+      winnerId,
+      amount: this.potWonAmount,
+      reason: this.winReason
+    });
 
     this.onEvent({
       type: 'SHOWDOWN_RESULT',
@@ -456,7 +467,7 @@ class GameEngine {
       eval1: p1Eval
     });
 
-    this.phase = GAME_PHASES.ROUND_OVER;
+    this.phase = GAME_PHASES.SHOWDOWN;
 
     // Check if duel is over (someone reached $0)
     if (this.players[0].chips <= 0 || this.players[1].chips <= 0) {
