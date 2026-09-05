@@ -1,16 +1,21 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
   <title>Syntax & Module Integrity Test</title>
 </head>
 <body>
   <div id="results">Loading modules...</div>
+  <script src="../js/peerjs.min.js"></script>
+  <script src="../js/confetti.browser.min.js"></script>
   <script src="../js/cards.js"></script>
   <script src="../js/poker-evaluator.js"></script>
   <script src="../js/sound.js"></script>
   <script src="../js/ai-player.js"></script>
   <script src="../js/network.js"></script>
   <script src="../js/game-engine.js"></script>
+  <script src="../js/games/go-fish-engine.js"></script>
+  <script src="../js/games/crazy-eights-engine.js"></script>
+  <script src="../js/games/spades-engine.js"></script>
   <script src="../js/app.js"></script>
   <script>
     document.getElementById('results').textContent = 'ALL MODULES LOADED SUCCESSFULLY WITHOUT ANY SYNTAX ERRORS! App instance: ' + (window.app ? 'OK' : 'FAIL');

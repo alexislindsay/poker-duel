@@ -1,4 +1,4 @@
-﻿// js/sound.js - Procedural Web Audio API sound effects for Poker Duel
+// js/sound.js - Procedural Web Audio API sound effects for Family Card Arcade
 
 class SoundController {
   constructor() {
@@ -23,13 +23,82 @@ class SoundController {
       this.initAudioContext();
     }
     if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      this.ctx.resume().catch(() => {});
     }
   }
 
-  toggleSound(force) {
+  toggle(force) {
     this.enabled = force !== undefined ? force : !this.enabled;
     return this.enabled;
+  }
+
+  play(name) {
+    if (!this.enabled) return;
+    try {
+      switch (name) {
+        case 'button':
+          this.playButtonClick();
+          break;
+        case 'card_slide':
+        case 'card_deal':
+        case 'draft_deal':
+          this.playCardDeal();
+          break;
+        case 'card_flip':
+        case 'card_discard':
+          this.playCardDiscard();
+          break;
+        case 'chips':
+        case 'chip':
+          this.playChipSound();
+          break;
+        case 'check':
+          this.playCheckSound();
+          break;
+        case 'chime':
+        case 'your_turn':
+          this.playYourTurn();
+          break;
+        case 'pot_win':
+        case 'win':
+          this.playWin();
+          break;
+        case 'bluff_caught':
+          this.playBluffCaught();
+          break;
+        case 'powerup':
+          this.playPowerup();
+          break;
+        default:
+          this.playButtonClick();
+          break;
+      }
+    } catch (e) {
+      console.warn('Audio play error:', e);
+    }
+  }
+
+  // Button Click (subtle UI tap)
+  playButtonClick() {
+    if (!this.enabled || !this.ctx) return;
+    this.ensureContext();
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, now);
+    osc.frequency.exponentialRampToValueAtTime(300, now + 0.04);
+
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.05);
   }
 
   // Card Deal / Flip sound (soft paper friction / snap)
@@ -89,7 +158,6 @@ class SoundController {
     this.ensureContext();
     const now = this.ctx.currentTime;
 
-    // Double ceramic clink
     [0, 0.04].forEach(delay => {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
@@ -134,7 +202,7 @@ class SoundController {
     });
   }
 
-  // Turn alert chime (soft ding to let player know it's their turn)
+  // Turn alert chime
   playYourTurn() {
     if (!this.enabled || !this.ctx) return;
     this.ensureContext();
@@ -156,6 +224,57 @@ class SoundController {
 
       osc.start(now + i * 0.08);
       osc.stop(now + i * 0.08 + 0.26);
+    });
+  }
+
+  // Siren / Caught in a Lie
+  playBluffCaught() {
+    if (!this.enabled || !this.ctx) return;
+    this.ensureContext();
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(300, now);
+    osc.frequency.linearRampToValueAtTime(800, now + 0.15);
+    osc.frequency.linearRampToValueAtTime(300, now + 0.3);
+    osc.frequency.linearRampToValueAtTime(800, now + 0.45);
+    osc.frequency.linearRampToValueAtTime(200, now + 0.6);
+
+    gain.gain.setValueAtTime(0.35, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.66);
+  }
+
+  // Powerup / Wild 8 effect
+  playPowerup() {
+    if (!this.enabled || !this.ctx) return;
+    this.ensureContext();
+    const now = this.ctx.currentTime;
+
+    const notes = [330, 440, 554.37, 659.25];
+    notes.forEach((freq, i) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now + i * 0.06);
+
+      gain.gain.setValueAtTime(0.25, now + i * 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.2);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(now + i * 0.06);
+      osc.stop(now + i * 0.06 + 0.22);
     });
   }
 
@@ -185,8 +304,17 @@ class SoundController {
   }
 }
 
+// Global singletons exposed for both naming conventions
 const sounds = new SoundController();
+const SoundFX = sounds;
+
+// Attach to window so it's guaranteed globally available
+if (typeof window !== 'undefined') {
+  window.SoundController = SoundController;
+  window.sounds = sounds;
+  window.SoundFX = SoundFX;
+}
 
 if (typeof module !== 'undefined') {
-  module.exports = { SoundController, sounds };
+  module.exports = { SoundController, sounds, SoundFX };
 }
