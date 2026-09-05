@@ -7,10 +7,12 @@ class DadBotAI {
   }
 
   // Decision on whether to KEEP or DISCARD a drawn card
-  decideDraft(drawnCard, aiHoleCards, communityCards, opponentHoleCount = 3) {
+  decideDraft(drawnCard, aiHoleCards = [], communityCards = [], opponentHoleCount = 3) {
     if (!drawnCard) return 'discard';
 
-    const currentCards = [...aiHoleCards, ...communityCards];
+    const hole = (aiHoleCards || []).filter(c => c && typeof c.value === 'number');
+    const comm = (communityCards || []).filter(c => c && typeof c.value === 'number');
+    const currentCards = [...hole, ...comm];
     const withNewCard = [...currentCards, drawnCard];
 
     const currentEval = PokerEvaluator.evaluateBestHand(currentCards);
@@ -38,18 +40,18 @@ class DadBotAI {
     }
 
     // 4. Pairs with any card in hand
-    const hasRankMatch = aiHoleCards.some(c => c.rank === drawnCard.rank);
+    const hasRankMatch = hole.some(c => c.rank === drawnCard.rank);
     if (hasRankMatch) {
       return 'keep';
     }
 
     // 5. If board is almost empty (0 or 1 card), higher willingness to accept decent cards (value >= 9)
-    if (communityCards.length <= 1 && drawnCard.value >= 9) {
+    if (comm.length <= 1 && drawnCard.value >= 9) {
       if (Math.random() < 0.60) return 'keep';
     }
 
     // 6. If we need to fill the last remaining slots and deck is running low
-    if (communityCards.length === 4) {
+    if (comm.length === 4) {
       // Last card slot: keep if >= 8 or random 50%
       if (drawnCard.value >= 8 || Math.random() < 0.50) return 'keep';
     }
@@ -60,14 +62,17 @@ class DadBotAI {
   // Decision on Betting Round (Check, Call, Bet, Raise, Fold)
   decideBet(gameState, aiPlayerId) {
     const ai = gameState.players[aiPlayerId];
+    if (!ai) return { action: 'check' };
     const opponent = gameState.players[1 - aiPlayerId];
-    const currentBet = gameState.currentBet;
-    const aiCallAmount = currentBet - ai.currentRoundBet;
-    const pot = gameState.pot;
+    const currentBet = gameState.currentBet || 0;
+    const aiCallAmount = currentBet - (ai.currentRoundBet || 0);
+    const pot = gameState.pot || 0;
 
-    const allAiCards = [...ai.holeCards, ...gameState.communityCards];
+    const hole = (ai.holeCards || []).filter(c => c && typeof c.value === 'number');
+    const comm = (gameState.communityCards || []).filter(c => c && typeof c.value === 'number');
+    const allAiCards = [...hole, ...comm];
     const handEval = PokerEvaluator.evaluateBestHand(allAiCards);
-    const strength = handEval.level ? (handEval.level * 10) : 10; // 10 to 100
+    const strength = (handEval && handEval.level) ? (handEval.level * 10) : 10; // 10 to 100
 
     // No bet to call (can Check or Bet)
     if (aiCallAmount <= 0) {

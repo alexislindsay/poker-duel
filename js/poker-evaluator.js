@@ -1,4 +1,4 @@
-﻿// js/poker-evaluator.js - Exact Poker Hand Evaluation & 10-Tier Rank Calculator
+// js/poker-evaluator.js - Exact Poker Hand Evaluation & 10-Tier Rank Calculator
 
 const HAND_RANKS = [
   { id: 'HIGH_CARD', name: 'High Card', level: 1 },
@@ -243,7 +243,8 @@ class PokerEvaluator {
   }
 
   // Evaluates any number of cards (3 to 8 cards)
-  static evaluateBestHand(cards) {
+  static evaluateBestHand(rawCards) {
+    const cards = (rawCards || []).filter(c => c && typeof c === 'object' && typeof c.value === 'number');
     if (!cards || cards.length === 0) {
       return {
         rankIndex: 0,
