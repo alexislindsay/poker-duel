@@ -115,7 +115,7 @@ class GoFishEngine {
 
         this.lastAction = {
           action: 'hand_over',
-          text: `?? ${opponent.name} gave ${matchingCards.length} ${rankLabel}(s) to ${asker.name}!`
+          text: `🤝 ${opponent.name} gave ${matchingCards.length} ${rankLabel}(s) to ${asker.name}!`
         };
 
         this.onEvent({ type: 'CARDS_TRANSFERRED', count: matchingCards.length, rank: targetRank });
@@ -131,7 +131,7 @@ class GoFishEngine {
       // Opponent claims: "GO FISH!"
       // AUTOMATED INVISIBLE REFEREE VERIFICATION:
       if (hasMatching) {
-        // ?? CAUGHT IN A LIE!
+        // 🚨 CAUGHT IN A LIE!
         opponent.penaltyCount++;
         opponent.hand = opponent.hand.filter(c => c.rank !== targetRank);
         asker.hand.push(...matchingCards);
@@ -159,7 +159,7 @@ class GoFishEngine {
 
         this.lastAction = {
           action: 'caught_lying',
-          text: `?? BUSTED! ${opponent.name} lied about having ${rankLabel}s! Surrendered all ${matchingCards.length} ${rankLabel}(s) + drew 2 penalty cards!`
+          text: `🚨 BUSTED! ${opponent.name} lied about having ${rankLabel}s! Surrendered all ${matchingCards.length} ${rankLabel}(s) + drew 2 penalty cards!`
         };
 
         this.phase = GO_FISH_PHASES.CAUGHT_LYING;
@@ -190,7 +190,7 @@ class GoFishEngine {
           if (gotDesired) {
             this.lastAction = {
               action: 'lucky_fish',
-              text: `?? Lucky Fish! ${asker.name} fished the ${rankLabel} they asked for! Turn continues!`
+              text: `🎣 Lucky Fish! ${asker.name} fished the ${rankLabel} they asked for! Turn continues!`
             };
             this.onEvent({ type: 'LUCKY_FISH', card: fishedCard });
             this.phase = this.checkGameEnd() ? GO_FISH_PHASES.GAME_OVER : GO_FISH_PHASES.ASKING;
