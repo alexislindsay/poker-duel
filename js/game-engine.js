@@ -523,23 +523,39 @@ class GameEngine {
   }
 
   getStateSnapshot() {
+    const draftPlayerId = (typeof this.activeDraftPlayer === 'number') ? this.activeDraftPlayer : 0;
+    const small = this.currentSmallBlind || (this.currentBlindLevel ? this.currentBlindLevel.small : 10);
+    const big = this.currentBigBlind || (this.currentBlindLevel ? this.currentBlindLevel.big : 20);
+    const currentCard = this.currentDrawnCard;
+
     return {
       phase: this.phase,
       roundNumber: this.roundNumber,
       blindLevel: this.currentBlindLevel,
+      currentSmallBlind: small,
+      currentBigBlind: big,
       dealerIndex: this.dealerIndex,
       activeTurnPlayer: this.activeTurnPlayer,
-      activeDraftPlayer: this.activeDraftPlayer,
+      activeDraftPlayer: draftPlayerId,
+      draftingPlayer: draftPlayerId,
+      draftTurnCount: (this.communityCards ? this.communityCards.length : 0) + 1,
       pot: this.pot,
       currentBet: this.currentBet,
       minRaise: this.minRaise,
       communityCards: this.communityCards,
-      currentDrawnCard: this.currentDrawnCard,
+      currentDrawnCard: currentCard,
+      currentDraftCard: currentCard,
       lastAction: this.lastAction,
       roundWinner: this.roundWinner,
       gameWinner: this.gameWinner,
       potWonAmount: this.potWonAmount,
       winReason: this.winReason,
+      winnerInfo: this.roundWinner ? {
+        winnerName: (typeof this.roundWinner === 'object' && this.roundWinner.name) ? this.roundWinner.name : (this.roundWinner === 'SPLIT' ? 'Split' : 'Winner'),
+        potAmount: this.potWonAmount || this.pot,
+        winningHandName: this.winReason,
+        isTie: (this.roundWinner === 'SPLIT')
+      } : null,
       players: this.players.map(p => ({
         id: p.id,
         name: p.name,
@@ -578,7 +594,8 @@ class GameEngine {
     return {
       ...raw,
       players: sanitizedPlayers,
-      currentDrawnCard: sanitizedDrawnCard
+      currentDrawnCard: sanitizedDrawnCard,
+      currentDraftCard: sanitizedDrawnCard
     };
   }
 }

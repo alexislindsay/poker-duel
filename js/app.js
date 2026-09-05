@@ -480,6 +480,18 @@ class FamilyCardArcadeApp {
     if (this.bustedBanner) this.bustedBanner.style.display = 'none';
 
     const engine = this.getCurrentEngine();
+    if (engine.players && engine.players.length >= 2) {
+      if (this.mode === 'AI') {
+        engine.players[0].name = 'You';
+        engine.players[1].name = 'Dad';
+      } else if (this.mode === 'PASS_PLAY') {
+        engine.players[0].name = 'Player 1';
+        engine.players[1].name = 'Player 2';
+      } else if (this.mode === 'ONLINE') {
+        engine.players[0].name = 'You (Host)';
+        engine.players[1].name = 'Dad (Guest)';
+      }
+    }
     engine.startNewGame();
     this.render();
   }
@@ -625,7 +637,9 @@ class FamilyCardArcadeApp {
 
     // Pot & Blinds
     if (this.potAmount) this.potAmount.textContent = `$${state.pot}`;
-    if (this.roundBlindsInfo) this.roundBlindsInfo.textContent = `Round ${state.roundNumber} • Blinds: $${state.currentSmallBlind} / $${state.currentBigBlind}`;
+    const small = state.currentSmallBlind || (state.blindLevel ? state.blindLevel.small : 10);
+    const big = state.currentBigBlind || (state.blindLevel ? state.blindLevel.big : 20);
+    if (this.roundBlindsInfo) this.roundBlindsInfo.textContent = `Round ${state.roundNumber || 1} • Blinds: $${small} / $${big}`;
 
     // Community Cards (5 slots)
     for (let i = 0; i < 5; i++) {
@@ -666,18 +680,23 @@ class FamilyCardArcadeApp {
     // Drafting Spotlight
     if (state.phase === 'DRAFTING') {
       if (this.draftSpotlight) this.draftSpotlight.style.display = 'flex';
-      const isMyDraft = (this.mode === 'PASS_PLAY' || state.draftingPlayer === this.localPlayerId);
-      if (isMyDraft && state.currentDraftCard) {
-        if (this.draftPrompt) this.draftPrompt.textContent = `${state.players[state.draftingPlayer].name}'s Pick: Card ${state.draftTurnCount}/4`;
+      const draftPlayerId = (typeof state.activeDraftPlayer === 'number') ? state.activeDraftPlayer : (typeof state.draftingPlayer === 'number' ? state.draftingPlayer : 0);
+      const isMyDraft = (this.mode === 'PASS_PLAY' || draftPlayerId === this.localPlayerId);
+      const draftCard = state.currentDraftCard || state.currentDrawnCard;
+      const draftingPlayerObj = (state.players && state.players[draftPlayerId]) ? state.players[draftPlayerId] : { name: `Player ${draftPlayerId + 1}` };
+      const slotNum = state.communityCards ? (state.communityCards.length + 1) : 1;
+
+      if (isMyDraft && draftCard) {
+        if (this.draftPrompt) this.draftPrompt.textContent = `${draftingPlayerObj.name}'s Pick: Slot ${slotNum}/5`;
         if (this.draftCardContainer) {
           this.draftCardContainer.innerHTML = '';
-          const draftEl = renderCardElement(state.currentDraftCard, { cardSize: 'large', faceDown: false });
+          const draftEl = renderCardElement(draftCard, { cardSize: 'large', faceDown: false });
           this.draftCardContainer.appendChild(draftEl);
         }
         if (this.draftActionButtons) this.draftActionButtons.style.display = 'flex';
         if (this.draftWaitingMessage) this.draftWaitingMessage.style.display = 'none';
       } else {
-        if (this.draftPrompt) this.draftPrompt.textContent = `${state.players[state.draftingPlayer].name} is choosing...`;
+        if (this.draftPrompt) this.draftPrompt.textContent = `${draftingPlayerObj.name} is choosing...`;
         if (this.draftCardContainer) {
           this.draftCardContainer.innerHTML = '';
           const backEl = renderCardElement({ suit: 's', rank: 'A' }, { cardSize: 'large', faceDown: true });
