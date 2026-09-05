@@ -606,7 +606,7 @@ class FamilyCardArcadeApp {
      POKER DUEL RENDERER
      ========================================================================= */
   renderPokerDuel(state) {
-    const isShowdown = state.phase === 'SHOWDOWN' || state.phase === 'HAND_COMPLETE';
+    const isShowdown = state.phase === 'SHOWDOWN' || state.phase === 'ROUND_OVER' || state.phase === 'HAND_COMPLETE' || state.phase === 'GAME_OVER';
     const localPlayer = state.players[this.localPlayerId];
     const opponentPlayer = state.players[1 - this.localPlayerId];
 
@@ -710,9 +710,11 @@ class FamilyCardArcadeApp {
     }
 
     // Assist Meter
-    if (localPlayer.handEval) {
-      if (this.assistHandName) this.assistHandName.textContent = localPlayer.handEval.handName || 'High Card';
-      this.updateStrengthMeter(localPlayer.handEval.rankCategory || 0);
+    if (localPlayer && localPlayer.handEval) {
+      const handTitle = localPlayer.handEval.name || localPlayer.handEval.shortName || localPlayer.handEval.handName || 'High Card';
+      if (this.assistHandName) this.assistHandName.textContent = handTitle;
+      const level = localPlayer.handEval.level || (typeof localPlayer.handEval.rankIndex === 'number' ? localPlayer.handEval.rankIndex + 1 : 1);
+      this.updateStrengthMeter(level);
     }
 
     // Showdown Banner
@@ -1199,11 +1201,12 @@ class FamilyCardArcadeApp {
   /* =========================================================================
      HELPERS & MODALS
      ========================================================================= */
-  updateStrengthMeter(categoryIndex) {
+  updateStrengthMeter(level) {
     if (!this.meterSegments) return;
+    const targetLevel = (typeof level === 'number') ? level : 1;
     this.meterSegments.forEach((seg, idx) => {
-      if (idx <= categoryIndex) {
-        seg.className = `meter-segment active cat-${categoryIndex}`;
+      if (idx + 1 <= targetLevel) {
+        seg.className = `meter-segment active cat-${targetLevel}`;
       } else {
         seg.className = 'meter-segment';
       }
