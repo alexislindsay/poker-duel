@@ -1,24 +1,24 @@
 // js/cards.js - Card definitions, Deck management, and SVG/HTML Card Rendering with Family & Food Deck Theme
 
 const SUITS = [
-  { name: 'spades', symbol: '?', foodEmoji: '??', foodName: 'Burgers', color: '#1a1a2e', letter: 'S' },
-  { name: 'hearts', symbol: '?', foodEmoji: '??', foodName: 'Cherries', color: '#e63946', letter: 'H' },
-  { name: 'diamonds', symbol: '?', foodEmoji: '??', foodName: 'Pizzas', color: '#ea580c', letter: 'D' },
-  { name: 'clubs', symbol: '?', foodEmoji: '??', foodName: 'Veggies', color: '#16a34a', letter: 'C' }
+  { name: 'spades', symbol: '♠', foodEmoji: '🍔', foodName: 'Burgers', color: '#1a1a2e', letter: 'S' },
+  { name: 'hearts', symbol: '♥', foodEmoji: '🍒', foodName: 'Cherries', color: '#e63946', letter: 'H' },
+  { name: 'diamonds', symbol: '♦', foodEmoji: '🍕', foodName: 'Pizzas', color: '#ea580c', letter: 'D' },
+  { name: 'clubs', symbol: '♣', foodEmoji: '🥦', foodName: 'Veggies', color: '#16a34a', letter: 'C' }
 ];
 
 const SUIT_FOOD_MAP = {
-  '?': { emoji: '??', name: 'Burgers', icon: '??' },
-  '?': { emoji: '??', name: 'Cherries', icon: '??' },
-  '?': { emoji: '??', name: 'Pizzas', icon: '??' },
-  '?': { emoji: '??', name: 'Veggies', icon: '??' }
+  '♠': { emoji: '🍔', name: 'Burgers', icon: '🍔' },
+  '♥': { emoji: '🍒', name: 'Cherries', icon: '🍒' },
+  '♦': { emoji: '🍕', name: 'Pizzas', icon: '🍕' },
+  '♣': { emoji: '🥦', name: 'Veggies', icon: '🥦' }
 };
 
 const SUIT_COLORS = {
-  '?': '#181824',
-  '?': '#dc2626',
-  '?': '#d97706',
-  '?': '#16a34a'
+  '♠': '#181824',
+  '♥': '#dc2626',
+  '♦': '#d97706',
+  '♣': '#16a34a'
 };
 
 const RANKS = [
@@ -39,22 +39,22 @@ const RANKS = [
 
 // Custom Illustrated Card Artworks
 const CARD_ART_MAP = {
-  'A?': 'assets/cards/as.jpg',
-  'A?': 'assets/cards/ad.jpg',
-  'A?': 'assets/cards/ah.jpg',
-  'A?': 'assets/cards/ac.jpg',
-  'K?': 'assets/cards/ks.jpg',
-  'Q?': 'assets/cards/qs.jpg',
-  'J?': 'assets/cards/js.jpg',
-  'K?': 'assets/cards/kd.jpg',
-  'Q?': 'assets/cards/qd.jpg',
-  'J?': 'assets/cards/jd.jpg',
-  'K?': 'assets/cards/kh.jpg',
-  'Q?': 'assets/cards/qh.jpg',
-  'J?': 'assets/cards/jh.jpg',
-  'K?': 'assets/cards/kc.jpg',
-  'Q?': 'assets/cards/qc.jpg',
-  'J?': 'assets/cards/jc.jpg',
+  'A♠': 'assets/cards/as.jpg',
+  'A♦': 'assets/cards/ad.jpg',
+  'A♥': 'assets/cards/ah.jpg',
+  'A♣': 'assets/cards/ac.jpg',
+  'K♠': 'assets/cards/ks.jpg',
+  'Q♠': 'assets/cards/qs.jpg',
+  'J♠': 'assets/cards/js.jpg',
+  'K♦': 'assets/cards/kd.jpg',
+  'Q♦': 'assets/cards/qd.jpg',
+  'J♦': 'assets/cards/jd.jpg',
+  'K♥': 'assets/cards/kh.jpg',
+  'Q♥': 'assets/cards/qh.jpg',
+  'J♥': 'assets/cards/jh.jpg',
+  'K♣': 'assets/cards/kc.jpg',
+  'Q♣': 'assets/cards/qc.jpg',
+  'J♣': 'assets/cards/jc.jpg',
   'JOKER_BIG': 'assets/cards/joker_big.jpg',
   'JOKER_LITTLE': 'assets/cards/joker_little.jpg'
 };
@@ -76,12 +76,12 @@ function getDeckTheme() {
 class Card {
   constructor(rank, suit) {
     this.rank = rank; // '2'-'9', 'T', 'J', 'Q', 'K', 'A', 'JOKER'
-    this.suit = suit; // '?', '?', '?', '?'
+    this.suit = suit; // '♠', '♥', '♦', '♣'
     const rankObj = RANKS.find(r => r.rank === rank) || { value: 0, label: rank };
     this.value = rankObj.value;
     this.label = rankObj.label;
     this.id = `${rank}${suit}`;
-    this.color = (suit === '?' || suit === '?') ? '#dc2626' : '#1e293b';
+    this.color = (suit === '♥' || suit === '♦') ? '#dc2626' : '#1e293b';
     this.fourColor = SUIT_COLORS[suit] || this.color;
     this.foodInfo = SUIT_FOOD_MAP[suit] || { emoji: suit, name: suit };
     this.customArt = CARD_ART_MAP[this.id] || null;
@@ -105,7 +105,7 @@ class Deck {
 
   reset() {
     this.cards = [];
-    const suits = ['?', '?', '?', '?'];
+    const suits = ['♠', '♥', '♦', '♣'];
     const ranks = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
     for (const s of suits) {
       for (const r of ranks) {
@@ -114,7 +114,7 @@ class Deck {
     }
     if (this.includeJokers) {
       const bigJoker = new Card('JOKER', 'BIG');
-      bigJoker.label = '? JOKER';
+      bigJoker.label = '★ JOKER';
       bigJoker.value = 15;
       bigJoker.customArt = CARD_ART_MAP['JOKER_BIG'];
       const littleJoker = new Card('JOKER', 'LITTLE');
@@ -160,7 +160,7 @@ function renderCardElement(card, options = {}) {
       <div class="card-inner">
         <div class="card-back">
           <div class="card-pattern">
-            <span class="back-logo">????</span>
+            <span class="back-logo">♠♥♦♣</span>
           </div>
         </div>
       </div>
@@ -168,7 +168,7 @@ function renderCardElement(card, options = {}) {
     return el;
   }
 
-  const isRed = card.suit === '?' || card.suit === '?';
+  const isRed = card.suit === '♥' || card.suit === '♦';
   const suitClass = isRed ? 'red-suit' : 'black-suit';
   const isFamilyTheme = (activeDeckTheme === 'family_food');
   const food = SUIT_FOOD_MAP[card.suit] || { emoji: card.suit };
@@ -191,7 +191,7 @@ function renderCardElement(card, options = {}) {
       </div>
     `;
   } else if (isFamilyTheme) {
-    // Numbered Food Card (2-10)
+    // Numbered Food Card (2–10)
     el.innerHTML = `
       <div class="card-inner">
         <div class="card-front food-card ${suitClass}">

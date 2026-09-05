@@ -90,7 +90,7 @@ class PokerEvaluator {
           level: 10,
           id: 'ROYAL_FLUSH',
           shortName: 'Royal Flush',
-          name: 'Royal Flush ??',
+          name: 'Royal Flush 👑',
           score: 9 * 1e10,
           cards: sorted,
           best5Cards: sorted
