@@ -1,4 +1,4 @@
-﻿// js/cards.js - Card definitions, Deck management, and SVG/HTML Card Rendering with Family & Food Deck Theme
+// js/cards.js - Card definitions, Deck management, and SVG/HTML Card Rendering with Family & Food Deck Theme
 
 const SUITS = [
   { name: 'spades', symbol: '♠', foodEmoji: '🍔', foodName: 'Burgers', color: '#1a1a2e', letter: 'S' },
@@ -179,7 +179,6 @@ function renderCardElement(card, options = {}) {
     el.innerHTML = `
       <div class="card-inner">
         <div class="card-front custom-art-card ${suitClass}" style="background-image: url('${card.customArt}');">
-          <div class="card-art-overlay"></div>
           <div class="corner top-left">
             <span class="card-rank">${card.label}</span>
             <span class="card-suit">${isFamilyTheme ? food.emoji : card.suit}</span>
