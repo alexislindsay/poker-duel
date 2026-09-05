@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Poker Duel - Messenger Style Card Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Family Card Arcade - Poker, Go Fish & Crazy 8s</title>
   <link rel="stylesheet" href="css/styles.css">
   <!-- PeerJS bundled locally for 100% reliable zero-server P2P multiplayer -->
   <script src="js/peerjs.min.js"></script>
@@ -14,8 +14,8 @@
   <!-- Header / Navigation -->
   <header class="game-header">
     <div class="logo-area">
-      <span style="font-size: 1.4rem;">🃏</span>
-      <h1 class="logo-title">POKER DUEL</h1>
+      <span style="font-size: 1.4rem;" id="header-game-icon">🃏</span>
+      <h1 class="logo-title" id="header-game-title">FAMILY CARD ARCADIA</h1>
       <div id="room-badge" class="room-badge" style="display: none;">
         <span class="status-dot"></span>
         <span id="room-badge-text">Room: <strong>------</strong></span>
@@ -23,16 +23,17 @@
     </div>
 
     <div class="header-controls">
+      <button id="btn-toggle-theme" class="icon-btn" title="Toggle Deck Theme (Family Food / Classic)">🎨</button>
       <button id="btn-share-room" class="icon-btn" title="Share Room Link" style="display: none;">🔗</button>
       <button id="btn-toggle-sound" class="icon-btn" title="Toggle Sound">🔊</button>
       <button id="btn-show-rules" class="icon-btn" title="Game Rules">❓</button>
-      <button id="btn-main-menu" class="icon-btn" title="Main Menu">⚙️</button>
+      <button id="btn-main-menu" class="icon-btn" title="Select Game">🎮</button>
     </div>
   </header>
 
   <!-- Main Game Arena -->
   <main class="game-container">
-    <div class="poker-table">
+    <div class="poker-table" id="main-table">
       
       <!-- Opponent Pod (Top) -->
       <div class="player-pod opponent-pod" id="opponent-pod">
@@ -48,29 +49,25 @@
 
         <div id="opponent-bet-badge" class="bet-badge" style="visibility: hidden;">Bet: $0</div>
 
-        <!-- Opponent 3 Hole Cards -->
+        <!-- Opponent Cards (Top Pod) -->
         <div class="cards-row" id="opponent-cards">
           <!-- Rendered via JS -->
         </div>
       </div>
 
-      <!-- Center Table Area: 5 Community Slots & Pot -->
-      <div class="table-center-area">
-        <!-- Neutral House Dealer Emblem -->
-        <div class="house-dealer-badge">
-          <span>🏛️ House Dealer</span>
+      <!-- Center Table Area -->
+      <div class="table-center-area" id="table-center-area">
+        <div class="house-dealer-badge" id="house-dealer-badge">🏛️ Casino House Dealer</div>
+        
+        <div class="pot-display" id="pot-display-wrapper">
+          <span class="pot-label" id="pot-label">Pot</span>
+          <span class="pot-amount" id="pot-amount">$30</span>
         </div>
 
-        <!-- Pot Amount Display -->
-        <div class="pot-display">
-          <span class="pot-label">POT</span>
-          <span class="pot-amount" id="pot-amount">$0</span>
-        </div>
-
-        <!-- 5 Community Card Slots (Keep or Discard fills these) -->
-        <div class="community-cards-container">
-          <span class="slots-label">Community Cards (5 Slots)</span>
-          <div class="community-slots-row" id="community-slots">
+        <!-- 5 Community Slots for Poker Duel -->
+        <div class="community-cards-container" id="poker-community-container">
+          <span class="slots-label">Community Board (5 Slots)</span>
+          <div class="community-slots-row" id="community-slots-row">
             <div class="card-slot" id="slot-0"><span class="slot-number">1</span></div>
             <div class="card-slot" id="slot-1"><span class="slot-number">2</span></div>
             <div class="card-slot" id="slot-2"><span class="slot-number">3</span></div>
@@ -79,21 +76,33 @@
           </div>
         </div>
 
+        <!-- Center Arena for Go Fish (Ocean Pond) & Crazy 8s (Stockpile + Discard) -->
+        <div class="center-arcade-stage" id="center-arcade-stage" style="display: none;">
+          <!-- Rendered via JS -->
+        </div>
+
         <!-- Round / Blinds Info Ribbon -->
         <div style="font-size: 0.75rem; color: rgba(255,255,255,0.6); letter-spacing: 0.5px;" id="round-blinds-info">
           Round 1 • Blinds: $10 / $20
         </div>
 
-        <!-- On-Table Showdown Banner -->
+        <!-- On-Table Showdown / Victory Banner -->
         <div id="showdown-banner" class="showdown-banner" style="display: none;">
           <div class="showdown-trophy">🏆</div>
           <div class="showdown-title" id="showdown-banner-title">YOU WON $1,020!</div>
           <div class="showdown-desc" id="showdown-banner-desc">Flush (Queen High)</div>
           <button id="btn-showdown-next" class="btn-primary btn-pulse" style="margin-top: 6px; width: auto; padding: 8px 24px;">▶ NEXT HAND</button>
         </div>
+
+        <!-- 🚨 BUSTED / CAUGHT IN A LIE BANNER -->
+        <div id="busted-banner" class="busted-banner" style="display: none;">
+          <div class="busted-icon">🚨</div>
+          <div class="busted-title">CAUGHT IN A LIE!</div>
+          <div class="busted-desc" id="busted-banner-desc">Dad lied about having 7s! Surrendered cards + drew 2 penalty cards!</div>
+        </div>
       </div>
 
-      <!-- Active Draft Card Inspect Tray (Positioned in Open Space, Never Obstructs Table Cards!) -->
+      <!-- Active Draft Card Inspect Tray (Centered in Open Space Above Community Cards) -->
       <div id="draft-spotlight" class="draft-spotlight-tray" style="display: none;">
         <div class="draft-card-wrapper" id="draft-card-container">
           <!-- Drawn Card rendered here -->
@@ -124,7 +133,7 @@
 
         <div id="player-bet-badge" class="bet-badge" style="visibility: hidden;">Bet: $0</div>
 
-        <!-- Player 3 Hole Cards -->
+        <!-- Player Cards (Bottom Pod) -->
         <div class="cards-row" id="player-cards">
           <!-- Rendered via JS -->
         </div>
@@ -132,8 +141,8 @@
 
     </div>
 
-    <!-- Real-Time Hand Strength Assist HUD -->
-    <section class="hand-assist-hud">
+    <!-- Real-Time Hand Strength Assist HUD (Poker Duel) -->
+    <section class="hand-assist-hud" id="poker-assist-hud">
       <div class="assist-header">
         <div class="assist-title-area">
           <span style="color: #fbbf24; font-weight: 800; font-size: 0.85rem;">⚡ YOUR BEST HAND:</span>
@@ -156,7 +165,7 @@
       </div>
     </section>
 
-    <!-- Action Controls Bar (Betting, Checking, Folding) -->
+    <!-- Action Controls Bar (Poker Betting) -->
     <section class="action-controls-bar" id="action-controls">
       <div class="action-buttons-row">
         <button id="btn-fold" class="btn-action btn-fold">FOLD</button>
@@ -177,22 +186,112 @@
         </div>
       </div>
     </section>
+
+    <!-- Go Fish & Crazy 8s Action Controls Bar -->
+    <section class="action-controls-bar" id="arcade-controls" style="display: none;">
+      <div class="action-buttons-row" id="arcade-buttons-row">
+        <!-- Rendered dynamically depending on active game -->
+      </div>
+    </section>
   </main>
 
   <!-- ================= MODALS ================= -->
 
-  <!-- Welcome / Mode Selection Modal -->
+  <!-- Welcome / Game Selection Lobby Modal -->
   <div id="modal-welcome" class="modal-overlay active">
-    <div class="modal-card">
-      <h2 class="modal-title">🃏 POKER DUEL</h2>
+    <div class="modal-card" style="max-width: 480px;">
+      <h2 class="modal-title">🃏 FAMILY CARD ARCADIA</h2>
       <p class="modal-desc">
-        Classic 2-player poker with 3 hole cards, 5 community spaces, Keep/Discard drafting, and real-time hand strength assist!
+        Pick a card game to play with Dad online or practice vs DadBot!
       </p>
 
-      <div style="display: flex; flex-direction: column; gap: 12px;">
+      <!-- Game Cards Grid -->
+      <div class="game-select-grid">
+        <div class="game-select-card selected" data-game="POKER_DUEL">
+          <div class="game-icon">🃏</div>
+          <div class="game-info">
+            <div class="game-name">Poker Duel</div>
+            <div class="game-subtitle">3 Hole Cards • 5 Community Draft • Assist HUD</div>
+          </div>
+        </div>
+
+        <div class="game-select-card" data-game="GO_FISH">
+          <div class="game-icon">🎣</div>
+          <div class="game-info">
+            <div class="game-name">Go Fish (Liar's Trap)</div>
+            <div class="game-subtitle">Ask for Cards • 🚨 Auto-Catch Lies & Penalties</div>
+          </div>
+        </div>
+
+        <div class="game-select-card" data-game="CRAZY_EIGHTS">
+          <div class="game-icon">🎴</div>
+          <div class="game-info">
+            <div class="game-name">Crazy Eights</div>
+            <div class="game-subtitle">Match Rank/Food Suits • Wild 8s • Empty Hand Wins</div>
+          </div>
+        </div>
+
+        <div class="game-select-card" data-game="SPADES">
+          <div class="game-icon">♠️</div>
+          <div class="game-info">
+            <div class="game-name">Spades Duel</div>
+            <div class="game-subtitle">2-Player Draft • Bid Tricks • Cosmic Jokers</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 16px;">
         <button id="btn-start-online" class="btn-primary">🌐 Play Online with Dad</button>
         <button id="btn-start-ai" class="btn-secondary" style="margin-top: 0;">🤖 Practice vs DadBot (AI)</button>
         <button id="btn-start-pass" class="btn-secondary">👥 Pass & Play (Local 2-Player)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Go Fish: Ask Rank Modal -->
+  <div id="modal-gofish-ask" class="modal-overlay">
+    <div class="modal-card" style="text-align: center;">
+      <h2 class="modal-title">🎣 Ask Dad for a Card</h2>
+      <p class="modal-desc">Select a rank you hold in your hand to ask:</p>
+      <div class="gofish-ranks-grid" id="gofish-ask-ranks-container">
+        <!-- Rendered via JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Go Fish: Respond to Ask Modal -->
+  <div id="modal-gofish-respond" class="modal-overlay">
+    <div class="modal-card" style="text-align: center;">
+      <h2 class="modal-title" id="gofish-respond-title">Dad asks: "Do you have any 7s?"</h2>
+      <p class="modal-desc">Choose your response (Warning: Liars will be caught & penalized!):</p>
+      <div style="display: flex; gap: 10px; margin-top: 14px;">
+        <button id="btn-gofish-handover" class="btn-primary" style="background: linear-gradient(135deg, #10b981, #059669);">🤝 Here are my cards</button>
+        <button id="btn-gofish-claimfish" class="btn-primary" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8);">🎣 GO FISH!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Crazy Eights: Wild 8 Suit Chooser Modal -->
+  <div id="modal-wild-suit" class="modal-overlay">
+    <div class="modal-card" style="text-align: center;">
+      <h2 class="modal-title">★ Choose New Suit</h2>
+      <p class="modal-desc">You played a Wild 8! Declare the active suit:</p>
+      <div class="wild-suit-grid">
+        <button class="btn-wild-suit" data-suit="♠">🍔 Burgers (♠)</button>
+        <button class="btn-wild-suit" data-suit="♦">🍕 Pizzas (♦)</button>
+        <button class="btn-wild-suit" data-suit="♥">🍒 Cherries (♥)</button>
+        <button class="btn-wild-suit" data-suit="♣">🥦 Veggies (♣)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Spades: Bidding Modal -->
+  <div id="modal-spades-bid" class="modal-overlay">
+    <div class="modal-card" style="text-align: center;">
+      <h2 class="modal-title">♠️ Enter Your Trick Bid</h2>
+      <p class="modal-desc">How many of the 13 tricks will you win?</p>
+      <div class="spades-bid-grid" id="spades-bid-buttons">
+        <!-- 0 (Nil) to 13 buttons rendered via JS -->
       </div>
     </div>
   </div>
@@ -224,67 +323,27 @@
     </div>
   </div>
 
-  <!-- Showdown / Round Summary Modal -->
-  <div id="modal-round-summary" class="modal-overlay">
-    <div class="modal-card" style="text-align: center;">
-      <h2 class="modal-title" id="round-winner-title">🏆 YOU WON THE POT!</h2>
-      <p class="modal-desc" id="round-winner-desc" style="font-size: 1.05rem; color: #facc15; font-weight: 700;">
-        You won $240 with a Flush, Ace High!
-      </p>
-
-      <div style="display: flex; justify-content: space-around; margin: 20px 0; background: #1e293b; padding: 14px; border-radius: 12px;">
-        <div>
-          <div style="font-size: 0.8rem; color: #94a3b8;" id="summary-p0-name">Your Hand</div>
-          <div style="font-weight: 800; color: #fef08a;" id="summary-p0-eval">Flush</div>
-        </div>
-        <div style="border-left: 1px solid #475569;"></div>
-        <div>
-          <div style="font-size: 0.8rem; color: #94a3b8;" id="summary-p1-name">Dad's Hand</div>
-          <div style="font-weight: 800; color: #94a3b8;" id="summary-p1-eval">Two Pair</div>
-        </div>
-      </div>
-
-      <button id="btn-next-round" class="btn-primary">▶ Next Hand</button>
-    </div>
-  </div>
-
   <!-- Champion / Game Over Duel Victory Modal -->
   <div id="modal-game-over" class="modal-overlay">
     <div class="modal-card" style="text-align: center; border-color: #fbbf24; box-shadow: 0 0 40px rgba(251, 191, 36, 0.5);">
       <div style="font-size: 2.8rem; margin-bottom: 4px;">👑</div>
       <h2 class="modal-title" id="game-over-title" style="font-size: 1.4rem;">DAD WON THE DUEL!</h2>
       <p class="modal-desc" id="game-over-desc" style="font-size: 0.95rem; color: #fef08a; font-weight: 700; margin-bottom: 14px;">
-        All $2,000 chips collected!
+        Victory celebration!
       </p>
 
-      <div style="margin: 12px 0 18px; background: #1e293b; padding: 12px; border-radius: 12px; display: flex; justify-content: space-around;">
-        <div>
-          <div style="font-size: 0.72rem; color: #94a3b8;">Total Rounds</div>
-          <div style="font-weight: 800; font-size: 1.1rem; color: #f8fafc;" id="game-over-rounds">1</div>
-        </div>
-        <div style="border-left: 1px solid #475569;"></div>
-        <div>
-          <div style="font-size: 0.72rem; color: #94a3b8;">Champion Stack</div>
-          <div style="font-weight: 800; font-size: 1.1rem; color: #facc15;">$2,000</div>
-        </div>
-      </div>
-
-      <button id="btn-rematch" class="btn-primary btn-pulse" style="font-size: 1rem; padding: 12px 20px;">🔄 Play Rematch (New Duel)</button>
-      <button id="btn-game-over-menu" class="btn-secondary" style="margin-top: 8px;">🏠 Main Menu</button>
+      <button id="btn-rematch" class="btn-primary btn-pulse" style="font-size: 1rem; padding: 12px 20px;">🔄 Play Rematch</button>
+      <button id="btn-game-over-menu" class="btn-secondary" style="margin-top: 8px;">🏠 Game Menu</button>
     </div>
   </div>
 
-  <!-- Game Rules & Assist Info Modal -->
+  <!-- Game Rules Modal -->
   <div id="modal-rules" class="modal-overlay">
     <div class="modal-card">
       <button class="modal-close-btn" id="btn-close-rules">✕</button>
-      <h2 class="modal-title">📖 How to Play Poker Duel</h2>
-      <div style="color: #cbd5e1; font-size: 0.88rem; line-height: 1.5; display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto; padding-right: 6px;">
-        <p><strong>1. Starting Chips & Blinds:</strong> Both players start with <strong>$1,000</strong>. Blinds escalate every 3 rounds.</p>
-        <p><strong>2. Hole Cards:</strong> Each player gets <strong>3 private cards</strong>.</p>
-        <p><strong>3. Keep / Discard Drafting:</strong> Cards are drawn from the deck one at a time. The active player chooses to <strong>KEEP</strong> (locks card into 1 of the 5 community spaces) or <strong>DISCARD</strong>. Drafting alternates until all 5 spaces are filled!</p>
-        <p><strong>4. Yellow Hand Assist Bar:</strong> The yellow HUD meter dynamically evaluates your best 5-card poker combination in real-time as cards are dealt or kept.</p>
-        <p><strong>5. Showdown:</strong> Best 5 cards out of your 3 hole cards + 5 table cards wins the pot!</p>
+      <h2 class="modal-title" id="rules-title">📖 Game Rules</h2>
+      <div id="rules-content" style="color: #cbd5e1; font-size: 0.88rem; line-height: 1.5; display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto; padding-right: 6px;">
+        <!-- Injected via JS based on selected game -->
       </div>
       <button id="btn-dismiss-rules" class="btn-secondary" style="margin-top: 16px;">Got It!</button>
     </div>
@@ -303,6 +362,9 @@
   <script src="js/ai-player.js"></script>
   <script src="js/network.js"></script>
   <script src="js/game-engine.js"></script>
+  <script src="js/games/go-fish-engine.js"></script>
+  <script src="js/games/crazy-eights-engine.js"></script>
+  <script src="js/games/spades-engine.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
