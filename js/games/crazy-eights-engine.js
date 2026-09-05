@@ -1,4 +1,4 @@
-﻿// js/games/crazy-eights-engine.js - 2-Player Crazy Eights Engine with Food Suits & Wild 8s
+// js/games/crazy-eights-engine.js - 2-Player Crazy Eights Engine with Food Suits & Wild 8s
 
 const CRAZY_EIGHTS_PHASES = {
   NOT_STARTED: 'NOT_STARTED',
@@ -57,6 +57,10 @@ class CrazyEightsEngine {
     this.lastAction = { text: `Game started! Top card is ${starter.label} of ${starter.suit}.` };
     this.onEvent({ type: 'CRAZY_EIGHTS_STARTED', starter });
     this.notifyState();
+  }
+
+  startNextRound() {
+    this.startNewGame();
   }
 
   getTopCard() {
