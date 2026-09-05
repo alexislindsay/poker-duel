@@ -1117,46 +1117,80 @@ class FamilyCardArcadeApp {
     if (!state) return;
 
     if (this.activeGame === GAME_TYPES.POKER_DUEL) {
-      if (state.phase === 'DRAFTING' && state.draftingPlayer === 1) {
+      const draftPlayer = (typeof state.activeDraftPlayer === 'number') ? state.activeDraftPlayer : state.draftingPlayer;
+      if (state.phase === 'DRAFTING' && draftPlayer === 1) {
         setTimeout(() => {
-          const action = this.pokerAI.decideDraftAction(state.currentDraftCard, state.players[1].holeCards);
-          if (action === 'KEEP') this.pokerEngine.playerKeepDraftCard(1);
-          else this.pokerEngine.playerDiscardDraftCard(1);
+          try {
+            const card = state.currentDraftCard || state.currentDrawnCard;
+            const holeCards = state.players && state.players[1] ? state.players[1].holeCards : [];
+            const action = this.pokerAI.decideDraftAction(card, holeCards, state.communityCards || []);
+            if (action === 'KEEP') this.pokerEngine.playerKeepDraftCard(1);
+            else this.pokerEngine.playerDiscardDraftCard(1);
+          } catch (e) {
+            console.error('AI draft error:', e);
+            this.pokerEngine.playerKeepDraftCard(1);
+          }
         }, 600);
       } else if ((state.phase === 'PRE_DRAFT_BETTING' || state.phase === 'CARD_BETTING') && state.activeTurnPlayer === 1) {
         setTimeout(() => {
-          const action = this.pokerAI.decideBetAction(state, 1);
-          this.pokerEngine.handlePlayerAction(1, action.type, action.amount);
+          try {
+            const action = this.pokerAI.decideBetAction(state, 1);
+            this.pokerEngine.handlePlayerAction(1, action.type, action.amount);
+          } catch (e) {
+            console.error('AI bet error:', e);
+            this.pokerEngine.handlePlayerAction(1, 'CHECK_CALL', 0);
+          }
         }, 800);
       }
     } else if (this.activeGame === GAME_TYPES.GO_FISH) {
       if (state.phase === 'ASKING' && state.activeTurnPlayer === 1) {
         setTimeout(() => {
-          const dadHand = state.players[1].hand;
-          if (dadHand && dadHand.length > 0) {
-            const randomCard = dadHand[Math.floor(Math.random() * dadHand.length)];
-            this.goFishEngine.askForRank(1, randomCard.rank);
+          try {
+            const dadHand = state.players && state.players[1] ? state.players[1].hand : [];
+            if (dadHand && dadHand.length > 0) {
+              const randomCard = dadHand[Math.floor(Math.random() * dadHand.length)];
+              this.goFishEngine.askForRank(1, randomCard.rank);
+            }
+          } catch (e) {
+            console.error('Go fish AI error:', e);
           }
         }, 900);
       }
     } else if (this.activeGame === GAME_TYPES.CRAZY_EIGHTS) {
       if (state.phase === 'PLAY' && state.activeTurnPlayer === 1) {
         setTimeout(() => {
-          this.crazy8Engine.aiPlayTurn(1);
+          try {
+            this.crazy8Engine.aiPlayTurn(1);
+          } catch (e) {
+            console.error('Crazy8 AI error:', e);
+          }
         }, 800);
       }
     } else if (this.activeGame === GAME_TYPES.SPADES) {
-      if (state.phase === 'DRAFTING' && state.draftingPlayer === 1) {
+      const draftPlayer = (typeof state.activeDraftPlayer === 'number') ? state.activeDraftPlayer : state.draftingPlayer;
+      if (state.phase === 'DRAFTING' && draftPlayer === 1) {
         setTimeout(() => {
-          this.spadesEngine.aiDraftTurn(1);
+          try {
+            this.spadesEngine.aiDraftTurn(1);
+          } catch (e) {
+            console.error('Spades AI draft error:', e);
+          }
         }, 500);
       } else if (state.phase === 'BIDDING' && state.activeTurnPlayer === 1) {
         setTimeout(() => {
-          this.spadesEngine.aiBidTurn(1);
+          try {
+            this.spadesEngine.aiBidTurn(1);
+          } catch (e) {
+            console.error('Spades AI bid error:', e);
+          }
         }, 600);
       } else if (state.phase === 'TRICK_PLAY' && state.activeTurnPlayer === 1) {
         setTimeout(() => {
-          this.spadesEngine.aiTrickTurn(1);
+          try {
+            this.spadesEngine.aiTrickTurn(1);
+          } catch (e) {
+            console.error('Spades AI trick error:', e);
+          }
         }, 700);
       }
     }
