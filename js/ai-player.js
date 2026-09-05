@@ -127,6 +127,19 @@ class DadBotAI {
 
     return { action: 'fold' };
   }
+
+  decideDraftAction(drawnCard, aiHoleCards = [], communityCards = []) {
+    const res = this.decideDraft(drawnCard, aiHoleCards, communityCards);
+    return res ? res.toUpperCase() : 'KEEP';
+  }
+
+  decideBetAction(gameState, aiPlayerId = 1) {
+    const dec = this.decideBet(gameState, aiPlayerId);
+    return {
+      type: (dec && dec.action ? dec.action : 'check').toUpperCase(),
+      amount: dec && dec.amount ? dec.amount : 0
+    };
+  }
 }
 
 if (typeof module !== 'undefined') {

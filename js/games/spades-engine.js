@@ -1,4 +1,4 @@
-﻿// js/games/spades-engine.js - 2-Player Spades Duel with Drafting & Jokers
+// js/games/spades-engine.js - 2-Player Spades Duel with Drafting & Jokers
 
 const SPADES_PHASES = {
   NOT_STARTED: 'NOT_STARTED',
@@ -96,6 +96,18 @@ class SpadesEngine {
     this.activePlayerId = 1 - this.activePlayerId;
     this.drawNextDraftCard();
     return true;
+  }
+
+  playerKeepDraftCard(playerId) {
+    return this.handleDraftDecision(playerId, 'keep');
+  }
+
+  playerDiscardDraftCard(playerId) {
+    return this.handleDraftDecision(playerId, 'discard');
+  }
+
+  startNextRound() {
+    this.startNewGame();
   }
 
   sortHands() {

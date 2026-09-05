@@ -484,6 +484,40 @@ class GameEngine {
     this.startNewRound();
   }
 
+  startNewGame() {
+    this.resetGame();
+    this.startNewRound();
+  }
+
+  startNextRound() {
+    this.startNewRound();
+  }
+
+  playerKeepDraftCard(playerId) {
+    return this.handleDraftDecision(playerId, 'keep');
+  }
+
+  playerDiscardDraftCard(playerId) {
+    return this.handleDraftDecision(playerId, 'discard');
+  }
+
+  handlePlayerAction(playerId, type, amount = 0) {
+    let action = 'check';
+    const t = (type || '').toUpperCase();
+    if (t === 'FOLD') {
+      action = 'fold';
+    } else if (t === 'CHECK_CALL' || t === 'CALL') {
+      const callAmount = this.currentBet - this.players[playerId].currentRoundBet;
+      action = callAmount > 0 ? 'call' : 'check';
+    } else if (t === 'BET_RAISE' || t === 'BET' || t === 'RAISE' || t === 'ALL_IN') {
+      action = this.currentBet > 0 ? 'raise' : 'bet';
+    } else if (t === 'CHECK') {
+      action = 'check';
+    }
+    
+    return this.handleBettingAction(playerId, action, amount);
+  }
+
   notifyState() {
     this.onStateChange(this.getStateSnapshot());
   }

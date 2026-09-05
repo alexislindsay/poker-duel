@@ -1,4 +1,4 @@
-﻿// js/games/go-fish-engine.js - 2-Player Go Fish with Automated "Liar's Trap" Penalty
+// js/games/go-fish-engine.js - 2-Player Go Fish with Automated "Liar's Trap" Penalty
 
 const GO_FISH_PHASES = {
   NOT_STARTED: 'NOT_STARTED',
@@ -55,6 +55,10 @@ class GoFishEngine {
 
     this.onEvent({ type: 'GO_FISH_STARTED' });
     this.notifyState();
+  }
+
+  startNextRound() {
+    this.startNewGame();
   }
 
   sortHands() {
