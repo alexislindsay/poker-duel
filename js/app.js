@@ -557,18 +557,26 @@ class FamilyCardArcadeApp {
     }
 
     // Toggle Stage Containers
+    const dealerBadge = document.getElementById('house-dealer-badge');
     if (gameType === GAME_TYPES.POKER_DUEL) {
       if (this.pokerCommunityContainer) this.pokerCommunityContainer.style.display = 'flex';
       if (this.centerArcadeStage) this.centerArcadeStage.style.display = 'none';
       if (this.actionControlsContainer) this.actionControlsContainer.style.display = 'flex';
       if (this.potDisplayWrapper) this.potDisplayWrapper.style.display = 'flex';
       if (this.handStrengthMeter) this.handStrengthMeter.style.display = 'block';
+      if (this.roundBlindsInfo) this.roundBlindsInfo.style.display = 'block';
+      if (dealerBadge) dealerBadge.style.display = 'block';
     } else {
       if (this.pokerCommunityContainer) this.pokerCommunityContainer.style.display = 'none';
       if (this.centerArcadeStage) this.centerArcadeStage.style.display = 'flex';
       if (this.actionControlsContainer) this.actionControlsContainer.style.display = 'none';
       if (this.potDisplayWrapper) this.potDisplayWrapper.style.display = (gameType === GAME_TYPES.SPADES) ? 'flex' : 'none';
       if (this.handStrengthMeter) this.handStrengthMeter.style.display = 'none';
+      if (this.roundBlindsInfo) this.roundBlindsInfo.style.display = 'none';
+      if (dealerBadge) dealerBadge.style.display = 'none';
+      if (this.p0BetBadge) this.p0BetBadge.style.visibility = 'hidden';
+      if (this.p1BetBadge) this.p1BetBadge.style.visibility = 'hidden';
+      if (this.draftSpotlight) this.draftSpotlight.style.display = 'none';
     }
   }
 
@@ -1013,13 +1021,17 @@ class FamilyCardArcadeApp {
      CRAZY EIGHTS RENDERER
      ========================================================================= */
   renderCrazy8s(state) {
-    const localPlayer = state.players[this.localPlayerId];
-    const opponentPlayer = state.players[1 - this.localPlayerId];
+    if (!state || !state.players) return;
+    const localPlayer = state.players[this.localPlayerId] || { name: 'You', hand: [] };
+    const opponentPlayer = state.players[1 - this.localPlayerId] || { name: 'Dad', hand: [] };
 
     if (this.p0Name) this.p0Name.textContent = localPlayer.name;
-    if (this.p0Chips) this.p0Chips.textContent = `🎴 Cards: ${localPlayer.hand.length}`;
+    if (this.p0Chips) this.p0Chips.textContent = `🎴 Cards: ${localPlayer.hand ? localPlayer.hand.length : 0}`;
     if (this.p1Name) this.p1Name.textContent = opponentPlayer.name;
-    if (this.p1Chips) this.p1Chips.textContent = `🎴 Cards: ${opponentPlayer.hand.length}`;
+    if (this.p1Chips) this.p1Chips.textContent = `🎴 Cards: ${opponentPlayer.hand ? opponentPlayer.hand.length : (opponentPlayer.handCount || 0)}`;
+
+    if (this.p0BetBadge) this.p0BetBadge.style.visibility = 'hidden';
+    if (this.p1BetBadge) this.p1BetBadge.style.visibility = 'hidden';
 
     // Active Pod Glow
     if (state.activeTurnPlayer === this.localPlayerId) {
@@ -1031,8 +1043,11 @@ class FamilyCardArcadeApp {
     }
 
     // Center Stage: Draw Pile + Discard Pile
-    const topDiscard = state.discardPile[state.discardPile.length - 1];
+    const topDiscard = state.topDiscard || state.topCard || (state.discardPile && state.discardPile.length > 0 ? state.discardPile[state.discardPile.length - 1] : null);
     const isMyTurn = (state.activeTurnPlayer === this.localPlayerId && state.phase === 'PLAY');
+    const activeSuit = state.currentSuit || state.declaredSuit || (topDiscard ? topDiscard.suit : '♠');
+    const food = (typeof SUIT_FOOD_MAP !== 'undefined' && SUIT_FOOD_MAP[activeSuit]) ? SUIT_FOOD_MAP[activeSuit] : { emoji: activeSuit, name: activeSuit };
+    const stockCount = (typeof state.stockpileCount === 'number') ? state.stockpileCount : (state.stockPile ? state.stockPile.length : 0);
 
     if (this.centerArcadeStage) {
       this.centerArcadeStage.innerHTML = '';
@@ -1043,7 +1058,7 @@ class FamilyCardArcadeApp {
       const drawDeckEl = document.createElement('div');
       drawDeckEl.className = 'crazy8-stock-pile';
       drawDeckEl.innerHTML = `
-        <div class="deck-count-badge">${state.stockPile.length} cards</div>
+        <div class="deck-count-badge">📦 Stock: ${stockCount}</div>
       `;
       const backCard = renderCardElement({ suit: 's', rank: 'A' }, { cardSize: 'medium', faceDown: true });
       if (isMyTurn) {
@@ -1051,7 +1066,7 @@ class FamilyCardArcadeApp {
         backCard.title = 'Click to Draw from Stock';
         backCard.addEventListener('click', () => {
           if (typeof SoundFX !== 'undefined') SoundFX.play('button');
-          this.crazy8Engine.drawFromStock(this.localPlayerId);
+          this.crazy8Engine.drawCard(this.localPlayerId);
         });
       }
       drawDeckEl.appendChild(backCard);
@@ -1060,7 +1075,7 @@ class FamilyCardArcadeApp {
       const discardPileEl = document.createElement('div');
       discardPileEl.className = 'crazy8-discard-pile';
       discardPileEl.innerHTML = `
-        <div class="active-suit-badge">Active Suit: ${getSuitSymbol(state.currentSuit)} ${state.currentSuit.toUpperCase()}</div>
+        <div class="active-suit-badge">Active: ${food.emoji} ${food.name.toUpperCase()}</div>
       `;
       if (topDiscard) {
         const discardCard = renderCardElement(topDiscard, { cardSize: 'medium', faceDown: false });
@@ -1073,10 +1088,11 @@ class FamilyCardArcadeApp {
     }
 
     // Player Cards (Playable cards highlighted)
-    if (this.p0CardsContainer) {
+    if (this.p0CardsContainer && localPlayer.hand) {
       this.p0CardsContainer.innerHTML = '';
       localPlayer.hand.forEach(card => {
-        const isValid = this.crazy8Engine.isValidPlay(card, topDiscard, state.currentSuit);
+        if (!card) return;
+        const isValid = this.crazy8Engine.isValidPlay(card, topDiscard, activeSuit);
         const cardEl = renderCardElement(card, {
           cardSize: 'medium',
           faceDown: false,
@@ -1086,6 +1102,7 @@ class FamilyCardArcadeApp {
         if (isMyTurn && isValid) {
           cardEl.style.cursor = 'pointer';
           cardEl.classList.add('card-playable-pulse');
+          cardEl.title = `Play ${card.label} of ${card.suit}`;
           cardEl.addEventListener('click', () => {
             if (card.rank === '8') {
               this.pendingCrazy8CardId = card.id;
@@ -1100,10 +1117,10 @@ class FamilyCardArcadeApp {
     }
 
     // Opponent Cards (Face down)
-    if (this.p1CardsContainer) {
+    if (this.p1CardsContainer && opponentPlayer.hand) {
       this.p1CardsContainer.innerHTML = '';
       opponentPlayer.hand.forEach(card => {
-        const cardEl = renderCardElement(card, { cardSize: 'medium', faceDown: true });
+        const cardEl = renderCardElement({ suit: 's', rank: 'A' }, { cardSize: 'medium', faceDown: true });
         this.p1CardsContainer.appendChild(cardEl);
       });
     }

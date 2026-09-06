@@ -304,7 +304,10 @@ class SpadesEngine {
   getStateSnapshot() {
     return {
       phase: this.phase,
+      activeTurnPlayer: this.activePlayerId,
       activePlayerId: this.activePlayerId,
+      draftingPlayer: this.draftingPlayer,
+      draftTurnCount: this.draftTurnCount,
       currentDraftCard: this.currentDraftCard,
       spadesBroken: this.spadesBroken,
       currentTrick: this.currentTrick,
@@ -319,6 +322,7 @@ class SpadesEngine {
         bid: p.bid,
         tricksWon: p.tricksWon,
         score: p.score,
+        totalScore: p.score,
         bags: p.bags
       }))
     };
