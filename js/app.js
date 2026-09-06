@@ -349,24 +349,42 @@ class FamilyCardArcadeApp {
     // Poker / Spades Draft Buttons
     if (this.btnDraftKeep) {
       this.btnDraftKeep.addEventListener('click', () => {
-        if (this.activeGame === GAME_TYPES.SPADES) {
-          this.spadesEngine.playerKeepDraftCard(this.localPlayerId);
+        if (typeof SoundFX !== 'undefined') SoundFX.play('button');
+        if (this.mode === 'ONLINE' && !this.isHost) {
+          if (this.activeGame === GAME_TYPES.SPADES) {
+            this.network.send({ type: 'SPADES_DRAFT', decision: 'KEEP', playerId: this.localPlayerId });
+          } else {
+            this.network.send({ type: 'DRAFT_DECISION', decision: 'KEEP', playerId: this.localPlayerId });
+          }
         } else {
-          this.pokerEngine.playerKeepDraftCard(this.localPlayerId);
-        }
-      });
-    }
-    if (this.btnDraftDiscard) {
-      this.btnDraftDiscard.addEventListener('click', () => {
-        if (this.activeGame === GAME_TYPES.SPADES) {
-          this.spadesEngine.playerDiscardDraftCard(this.localPlayerId);
-        } else {
-          this.pokerEngine.playerDiscardDraftCard(this.localPlayerId);
+          if (this.activeGame === GAME_TYPES.SPADES) {
+            this.spadesEngine.playerKeepDraftCard(this.localPlayerId);
+          } else {
+            this.pokerEngine.playerKeepDraftCard(this.localPlayerId);
+          }
         }
       });
     }
 
-    // Showdown Next Hand
+    if (this.btnDraftDiscard) {
+      this.btnDraftDiscard.addEventListener('click', () => {
+        if (typeof SoundFX !== 'undefined') SoundFX.play('button');
+        if (this.mode === 'ONLINE' && !this.isHost) {
+          if (this.activeGame === GAME_TYPES.SPADES) {
+            this.network.send({ type: 'SPADES_DRAFT', decision: 'DISCARD', playerId: this.localPlayerId });
+          } else {
+            this.network.send({ type: 'DRAFT_DECISION', decision: 'DISCARD', playerId: this.localPlayerId });
+          }
+        } else {
+          if (this.activeGame === GAME_TYPES.SPADES) {
+            this.spadesEngine.playerDiscardDraftCard(this.localPlayerId);
+          } else {
+            this.pokerEngine.playerDiscardDraftCard(this.localPlayerId);
+          }
+        }
+      });
+    }
+
     // Showdown Next Hand / Rematch
     if (this.btnShowdownNext) {
       this.btnShowdownNext.addEventListener('click', () => {
@@ -415,13 +433,21 @@ class FamilyCardArcadeApp {
     if (btnGiveFish) {
       btnGiveFish.addEventListener('click', () => {
         this.closeModal('modal-gofish-respond');
-        this.goFishEngine.respondHonest(this.localPlayerId);
+        if (this.mode === 'ONLINE' && !this.isHost) {
+          this.network.send({ type: 'GOFISH_RESPOND', responderId: this.localPlayerId, responseType: 'HONEST' });
+        } else {
+          this.goFishEngine.respondHonest(this.localPlayerId);
+        }
       });
     }
     if (btnClaimGoFish) {
       btnClaimGoFish.addEventListener('click', () => {
         this.closeModal('modal-gofish-respond');
-        this.goFishEngine.respondGoFish(this.localPlayerId);
+        if (this.mode === 'ONLINE' && !this.isHost) {
+          this.network.send({ type: 'GOFISH_RESPOND', responderId: this.localPlayerId, responseType: 'GO_FISH' });
+        } else {
+          this.goFishEngine.respondGoFish(this.localPlayerId);
+        }
       });
     }
 
@@ -431,9 +457,16 @@ class FamilyCardArcadeApp {
         const chosenSuit = btn.dataset.suit;
         this.closeModal('modal-wild-suit');
         this.closeModal('modal-crazy8-suit');
-        if (this.pendingCrazy8CardId) {
-          this.crazy8Engine.playCard(this.localPlayerId, this.pendingCrazy8CardId, chosenSuit);
-          this.pendingCrazy8CardId = null;
+        if (this.mode === 'ONLINE' && !this.isHost) {
+          if (this.pendingCrazy8CardId) {
+            this.network.send({ type: 'CRAZY8_PLAY', playerId: this.localPlayerId, cardId: this.pendingCrazy8CardId, chosenSuit });
+            this.pendingCrazy8CardId = null;
+          }
+        } else {
+          if (this.pendingCrazy8CardId) {
+            this.crazy8Engine.playCard(this.localPlayerId, this.pendingCrazy8CardId, chosenSuit);
+            this.pendingCrazy8CardId = null;
+          }
         }
       });
     });
@@ -1500,15 +1533,58 @@ class FamilyCardArcadeApp {
 
   onNetworkMessage(msg) {
     if (!msg) return;
+
     if (msg.type === 'SYNC_STATE') {
       this.latestRemoteState = msg.state;
       this.renderGameState(msg.state);
-    } else if (msg.type === 'POKER_ACTION' && this.isHost) {
-      this.pokerEngine.handlePlayerAction(1, msg.action, msg.amount);
-    } else if (msg.type === 'GOFISH_ASK' && this.isHost) {
-      this.goFishEngine.askForRank(1, msg.rank);
-    } else if (msg.type === 'REQUEST_NEXT_HAND' && this.isHost) {
-      this.getCurrentEngine().startNextRound();
+    } else if (this.isHost) {
+      switch (msg.type) {
+        case 'POKER_ACTION':
+          this.pokerEngine.handlePlayerAction(1, msg.action, msg.amount);
+          break;
+        case 'DRAFT_DECISION':
+          if (msg.decision === 'KEEP') {
+            this.pokerEngine.playerKeepDraftCard(1);
+          } else {
+            this.pokerEngine.playerDiscardDraftCard(1);
+          }
+          break;
+        case 'GOFISH_ASK':
+          this.goFishEngine.askForRank(1, msg.rank);
+          break;
+        case 'GOFISH_RESPOND':
+          if (msg.responseType === 'HONEST') {
+            this.goFishEngine.respondHonest(1);
+          } else {
+            this.goFishEngine.respondGoFish(1);
+          }
+          break;
+        case 'CRAZY8_PLAY':
+          this.crazy8Engine.playCard(1, msg.cardId, msg.chosenSuit);
+          break;
+        case 'CRAZY8_DRAW':
+          this.crazy8Engine.drawCard(1);
+          break;
+        case 'CRAZY8_SUIT':
+          this.crazy8Engine.chooseWildSuit(1, msg.suit);
+          break;
+        case 'SPADES_DRAFT':
+          if (msg.decision === 'KEEP') {
+            this.spadesEngine.playerKeepDraftCard(1);
+          } else {
+            this.spadesEngine.playerDiscardDraftCard(1);
+          }
+          break;
+        case 'SPADES_BID':
+          this.spadesEngine.playerPlaceBid(1, msg.bid);
+          break;
+        case 'SPADES_PLAY_CARD':
+          this.spadesEngine.playerPlayCard(1, msg.cardId);
+          break;
+        case 'REQUEST_NEXT_HAND':
+          this.getCurrentEngine().startNextRound();
+          break;
+      }
     }
   }
 
