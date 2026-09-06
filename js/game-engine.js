@@ -263,8 +263,10 @@ class GameEngine {
     const betsEqual = p0.currentRoundBet === p1.currentRoundBet;
     const bothActed = this.betActedSet.has(0) && this.betActedSet.has(1);
 
-    // Betting round ends when both players have acted and bets are equalized or all-in
-    const bettingRoundDone = (bothActed && betsEqual) || p0.isAllIn || p1.isAllIn;
+    // If a player went all-in, the opponent MUST still act (call all-in or fold)!
+    // Betting round only completes when BOTH players have acted and bets are matched (or all-in called).
+    const isAllInSettled = (p0.isAllIn || p1.isAllIn) && bothActed;
+    const bettingRoundDone = (bothActed && betsEqual) || isAllInSettled;
 
     if (bettingRoundDone) {
       this.resetRoundBets();
