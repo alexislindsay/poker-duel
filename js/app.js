@@ -437,6 +437,97 @@ class FamilyCardArcadeApp {
         }
       });
     });
+
+    // Initialize Draggable Draft Window
+    this.initDraggableDraftWindow();
+  }
+
+  /* =========================================================================
+     DRAGGABLE DRAFT WINDOW
+     ========================================================================= */
+  initDraggableDraftWindow() {
+    const el = this.draftSpotlight;
+    if (!el) return;
+
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let startLeft = 0;
+    let startTop = 0;
+
+    const onStart = (e) => {
+      // Don't drag when clicking buttons or interactive elements
+      if (e.target.closest('button, a, input, select, textarea')) return;
+
+      isDragging = true;
+      el.classList.add('is-dragging');
+
+      const clientX = (e.touches && e.touches.length > 0) ? e.touches[0].clientX : e.clientX;
+      const clientY = (e.touches && e.touches.length > 0) ? e.touches[0].clientY : e.clientY;
+
+      startX = clientX;
+      startY = clientY;
+
+      const parentEl = el.offsetParent || document.body;
+      const parentRect = parentEl.getBoundingClientRect();
+      const rect = el.getBoundingClientRect();
+
+      startLeft = rect.left - parentRect.left;
+      startTop = rect.top - parentRect.top;
+
+      // Lock current visual coordinates and remove CSS transform to allow absolute drag
+      el.style.transform = 'none';
+      el.style.left = `${startLeft}px`;
+      el.style.top = `${startTop}px`;
+
+      if (e.cancelable && e.type.startsWith('touch')) {
+        e.preventDefault();
+      }
+    };
+
+    const onMove = (e) => {
+      if (!isDragging) return;
+
+      const clientX = (e.touches && e.touches.length > 0) ? e.touches[0].clientX : e.clientX;
+      const clientY = (e.touches && e.touches.length > 0) ? e.touches[0].clientY : e.clientY;
+
+      const deltaX = clientX - startX;
+      const deltaY = clientY - startY;
+
+      let newLeft = startLeft + deltaX;
+      let newTop = startTop + deltaY;
+
+      const parentEl = el.offsetParent || document.body;
+      const maxLeft = parentEl.clientWidth - el.offsetWidth - 4;
+      const maxTop = parentEl.clientHeight - el.offsetHeight - 4;
+
+      newLeft = Math.max(4, Math.min(newLeft, maxLeft));
+      newTop = Math.max(4, Math.min(newTop, maxTop));
+
+      el.style.left = `${newLeft}px`;
+      el.style.top = `${newTop}px`;
+
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+    };
+
+    const onEnd = () => {
+      if (isDragging) {
+        isDragging = false;
+        el.classList.remove('is-dragging');
+      }
+    };
+
+    el.addEventListener('mousedown', onStart);
+    el.addEventListener('touchstart', onStart, { passive: false });
+
+    window.addEventListener('mousemove', onMove, { passive: false });
+    window.addEventListener('touchmove', onMove, { passive: false });
+
+    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('touchend', onEnd);
+    window.addEventListener('touchcancel', onEnd);
   }
 
   /* =========================================================================
