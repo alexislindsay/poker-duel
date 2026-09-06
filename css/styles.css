@@ -1162,9 +1162,107 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 16px;
-  background: rgba(0, 0, 0, 0.4);
-  padding: 8px 14px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  margin-top: 4px;
+  background: rgba(15, 23, 42, 0.75);
+  padding: 10px 20px;
+  border-radius: 20px;
+  border: 1.5px solid rgba(251, 191, 36, 0.35);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  margin: 4px auto;
+  max-width: 95%;
+}
+
+/* Crazy 8s Arena */
+.crazy8-center-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+}
+
+.crazy8-stock-pile, .crazy8-discard-pile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.deck-count-badge {
+  background: rgba(30, 41, 59, 0.9);
+  color: #38bdf8;
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid #38bdf8;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  letter-spacing: 0.5px;
+}
+
+.active-suit-badge {
+  background: rgba(30, 41, 59, 0.95);
+  color: #fbbf24;
+  font-size: 0.8rem;
+  font-weight: 800;
+  padding: 4px 12px;
+  border-radius: 12px;
+  border: 1px solid #fbbf24;
+  box-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+/* Ocean Pond for Go Fish */
+.ocean-pond-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.ocean-pond-graphic {
+  font-size: 2.2rem;
+  animation: floatFish 3s ease-in-out infinite alternate;
+}
+
+@keyframes floatFish {
+  0% { transform: translateY(0px) rotate(0deg); }
+  100% { transform: translateY(-6px) rotate(3deg); }
+}
+
+.ocean-pond-count {
+  font-size: 0.8rem;
+  color: #93c5fd;
+  font-weight: 700;
+}
+
+.turn-announcement {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #fde047;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+
+/* Card Playable Pulse Highlight */
+.card-playable-pulse {
+  animation: playablePulse 1.8s infinite ease-in-out !important;
+  border-color: #22c55e !important;
+  box-shadow: 0 0 16px rgba(34, 197, 94, 0.8), 0 4px 10px rgba(0, 0, 0, 0.5) !important;
+  transform: translateY(-4px);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card-playable-pulse:hover {
+  transform: translateY(-10px) scale(1.06) !important;
+  box-shadow: 0 0 24px rgba(34, 197, 94, 1), 0 8px 18px rgba(0, 0, 0, 0.7) !important;
+}
+
+@keyframes playablePulse {
+  0% { box-shadow: 0 0 8px rgba(34, 197, 94, 0.5); }
+  50% { box-shadow: 0 0 22px rgba(34, 197, 94, 0.95); }
+  100% { box-shadow: 0 0 8px rgba(34, 197, 94, 0.5); }
 }

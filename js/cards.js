@@ -233,6 +233,28 @@ function renderCardElement(card, options = {}) {
   return el;
 }
 
+function getSuitSymbol(suit) {
+  if (!suit) return '♠';
+  const map = {
+    'spades': '♠', 's': '♠', '♠': '♠',
+    'hearts': '♥', 'h': '♥', '♥': '♥',
+    'diamonds': '♦', 'd': '♦', '♦': '♦',
+    'clubs': '♣', 'c': '♣', '♣': '♣'
+  };
+  return map[String(suit).toLowerCase()] || suit;
+}
+
+function getSuitFoodName(suit) {
+  const s = getSuitSymbol(suit);
+  const map = {
+    '♠': '🍔 Burgers',
+    '♥': '🍒 Cherries',
+    '♦': '🍕 Pizzas',
+    '♣': '🥦 Veggies'
+  };
+  return map[s] || suit;
+}
+
 if (typeof module !== 'undefined') {
-  module.exports = { Card, Deck, SUITS, RANKS, SUIT_COLORS, SUIT_FOOD_MAP, CARD_ART_MAP, renderCardElement, setDeckTheme, getDeckTheme };
+  module.exports = { Card, Deck, SUITS, RANKS, SUIT_COLORS, SUIT_FOOD_MAP, CARD_ART_MAP, renderCardElement, setDeckTheme, getDeckTheme, getSuitSymbol, getSuitFoodName };
 }

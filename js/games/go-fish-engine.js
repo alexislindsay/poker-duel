@@ -278,9 +278,13 @@ class GoFishEngine {
   getStateSnapshot() {
     return {
       phase: this.phase,
+      activeTurnPlayer: this.activePlayerId,
       activePlayerId: this.activePlayerId,
       currentAskRank: this.currentAskRank,
+      currentAskedRank: this.currentAskRank,
+      askedPlayerId: 1 - this.activePlayerId,
       oceanRemaining: this.deck.remaining(),
+      oceanDeck: this.deck.cards,
       lastAction: this.lastAction,
       winner: this.winner,
       revealedCards: this.revealedCards,
