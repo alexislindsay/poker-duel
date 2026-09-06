@@ -619,13 +619,38 @@ class FamilyCardArcadeApp {
     if (game !== this.activeGame) return;
 
     switch (event.type) {
+      case 'ACTION_CHECK':
+        if (typeof SoundFX !== 'undefined') SoundFX.play('button');
+        this.showToast(`✋ ${event.playerName || 'Player'} CHECKED`);
+        break;
+      case 'ACTION_CALL':
+        if (typeof SoundFX !== 'undefined') SoundFX.play('chips');
+        this.showToast(`💰 ${event.playerName || 'Player'} CALLED $${event.amount}`);
+        break;
+      case 'ACTION_RAISE':
+        if (typeof SoundFX !== 'undefined') SoundFX.play('chips');
+        this.showToast(`🚀 ${event.playerName || 'Player'} RAISED to $${event.amount}!`);
+        break;
+      case 'ACTION_FOLD':
+        if (typeof SoundFX !== 'undefined') SoundFX.play('card_flip');
+        this.showToast(`🏳️ ${event.playerName || 'Player'} FOLDED!`);
+        break;
+      case 'HAND_WON_FOLD':
+        if (typeof SoundFX !== 'undefined') SoundFX.play('pot_win');
+        this.showToast(`🏆 ${event.reason || 'Hand won by fold!'}`);
+        if (event.winnerId === 0 && window.confetti) {
+          window.confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        }
+        break;
       case 'DRAFT_CARD_DEALT':
         if (typeof SoundFX !== 'undefined') SoundFX.play('draft_deal');
         break;
       case 'DRAFT_KEPT':
+      case 'DRAFT_KEEP':
         if (typeof SoundFX !== 'undefined') SoundFX.play('card_slide');
         break;
       case 'DRAFT_DISCARDED':
+      case 'DRAFT_DISCARD':
         if (typeof SoundFX !== 'undefined') SoundFX.play('card_flip');
         break;
       case 'BET_PLACED':
@@ -851,10 +876,13 @@ class FamilyCardArcadeApp {
     this.btnBetRaise.disabled = !isMyTurn || activePlayer.chips <= 0;
     this.btnAllIn.disabled = !isMyTurn || activePlayer.chips <= 0;
 
+    this.btnFold.textContent = '🏳️ FOLD';
+    this.btnAllIn.textContent = '⚡ ALL IN';
+
     if (callAmount <= 0) {
-      this.btnCheckCall.textContent = 'CHECK';
+      this.btnCheckCall.textContent = '✋ CHECK';
     } else {
-      this.btnCheckCall.textContent = `CALL $${Math.min(activePlayer.chips, callAmount)}`;
+      this.btnCheckCall.textContent = `💰 CALL $${Math.min(activePlayer.chips, callAmount)}`;
     }
 
     const min = Math.max(state.minRaise || state.currentBigBlind, state.currentBet + state.currentBigBlind);
@@ -874,8 +902,8 @@ class FamilyCardArcadeApp {
     if (!this.btnBetRaise || !this.betSlider) return;
     const val = parseInt(this.betSlider.value, 10);
     const state = this.getCurrentState();
-    const actionName = state.currentBet > 0 ? 'RAISE TO' : 'BET';
-    this.btnBetRaise.textContent = `${actionName} $${val}`;
+    const actionName = (state && state.currentBet > 0) ? 'RAISE TO' : 'BET';
+    this.btnBetRaise.textContent = `🚀 ${actionName} $${val}`;
   }
 
   handlePokerAction(type, amount = 0) {

@@ -197,7 +197,7 @@ class GameEngine {
         }
         this.betActedSet.add(playerId);
         this.lastAction = { playerId, action: 'check', text: `${player.name} checks` };
-        this.onEvent({ type: 'ACTION_CHECK', playerId });
+        this.onEvent({ type: 'ACTION_CHECK', playerId, playerName: player.name });
         this.advanceBettingTurn(playerId, 'check');
         break;
 
@@ -211,7 +211,7 @@ class GameEngine {
 
         this.betActedSet.add(playerId);
         this.lastAction = { playerId, action: 'call', amount: actualCall, text: `${player.name} calls $${actualCall}` };
-        this.onEvent({ type: 'ACTION_CALL', playerId, amount: actualCall });
+        this.onEvent({ type: 'ACTION_CALL', playerId, amount: actualCall, playerName: player.name });
         this.advanceBettingTurn(playerId, 'call');
         break;
 
@@ -240,14 +240,14 @@ class GameEngine {
         this.betActedSet.add(playerId);
 
         this.lastAction = { playerId, action: 'raise', amount: targetBet, text: `${player.name} raises to $${targetBet}` };
-        this.onEvent({ type: 'ACTION_RAISE', playerId, amount: targetBet });
+        this.onEvent({ type: 'ACTION_RAISE', playerId, amount: targetBet, playerName: player.name });
         this.advanceBettingTurn(playerId, 'raise');
         break;
 
       case 'fold':
         player.folded = true;
         this.lastAction = { playerId, action: 'fold', text: `${player.name} folds` };
-        this.onEvent({ type: 'ACTION_FOLD', playerId });
+        this.onEvent({ type: 'ACTION_FOLD', playerId, playerName: player.name });
         this.endHandFold(1 - playerId);
         return true;
     }
