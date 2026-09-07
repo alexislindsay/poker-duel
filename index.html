@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Family Card Arcade - Poker, Go Fish & Crazy 8s</title>
+  <title>Card Arcade - Online & Solo Card Games</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🃏</text></svg>">
   <link rel="stylesheet" href="css/styles.css">
   <!-- PeerJS bundled locally for 100% reliable zero-server P2P multiplayer -->
@@ -16,7 +16,7 @@
   <header class="game-header">
     <div class="logo-area">
       <span style="font-size: 1.4rem;" id="header-game-icon">🃏</span>
-      <h1 class="logo-title" id="header-game-title">FAMILY CARD ARCADIA</h1>
+      <h1 class="logo-title" id="header-game-title">CARD ARCADIA</h1>
       <div id="room-badge" class="room-badge" style="display: none;">
         <span class="status-dot"></span>
         <span id="room-badge-text">Room: <strong>------</strong></span>
@@ -24,7 +24,7 @@
     </div>
 
     <div class="header-controls">
-      <button id="btn-toggle-theme" class="icon-btn" title="Toggle Deck Theme (Family Food / Classic)">🎨</button>
+      <button id="btn-toggle-theme" class="icon-btn" title="Toggle Deck Theme (Food Art / Classic)">🎨</button>
       <button id="btn-share-room" class="icon-btn" title="Share Room Link" style="display: none;">🔗</button>
       <button id="btn-toggle-sound" class="icon-btn" title="Toggle Sound">🔊</button>
       <button id="btn-show-rules" class="icon-btn" title="Game Rules">❓</button>
@@ -39,11 +39,11 @@
       <!-- Opponent Pod (Top) -->
       <div class="player-pod opponent-pod" id="opponent-pod">
         <div class="player-info-card" id="opponent-info-card">
-          <div class="player-avatar avatar-dad">
-            <span id="opponent-avatar-icon">👨</span>
+          <div class="player-avatar avatar-dad" id="opponent-avatar-container">
+            <span id="opponent-avatar-icon">🤖</span>
           </div>
           <div class="player-details">
-            <span class="player-name" id="opponent-name">Dad</span>
+            <span class="player-name" id="opponent-name">DadBot</span>
             <span class="player-chips" id="opponent-chips">💰 $1,000</span>
           </div>
         </div>
@@ -207,9 +207,9 @@
   <!-- Welcome / Game Selection Lobby Modal -->
   <div id="modal-welcome" class="modal-overlay active">
     <div class="modal-card" style="max-width: 480px;">
-      <h2 class="modal-title">🃏 FAMILY CARD ARCADIA</h2>
+      <h2 class="modal-title">🃏 CARD ARCADIA</h2>
       <p class="modal-desc">
-        Pick a card game to play with Dad online or practice vs DadBot!
+        Pick a card game to play online with anyone, pass & play, or practice vs DadBot!
       </p>
 
       <!-- Game Cards Grid -->
@@ -248,7 +248,7 @@
       </div>
 
       <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 16px;">
-        <button id="btn-start-online" class="btn-primary">🌐 Play Online with Dad</button>
+        <button id="btn-start-online" class="btn-primary">🌐 Play Online (Invite Anyone)</button>
         <button id="btn-start-ai" class="btn-secondary" style="margin-top: 0;">🤖 Practice vs DadBot (AI)</button>
         <button id="btn-start-pass" class="btn-secondary">👥 Pass & Play (Local 2-Player)</button>
       </div>
@@ -258,7 +258,7 @@
   <!-- Go Fish: Ask Rank Modal -->
   <div id="modal-gofish-ask" class="modal-overlay">
     <div class="modal-card" style="text-align: center;">
-      <h2 class="modal-title">🎣 Ask Dad for a Card</h2>
+      <h2 class="modal-title" id="gofish-ask-title">🎣 Ask Opponent for a Card</h2>
       <p class="modal-desc">Select a rank you hold in your hand to ask:</p>
       <div class="gofish-ranks-grid" id="gofish-ask-ranks-container">
         <!-- Rendered via JS -->
@@ -269,7 +269,7 @@
   <!-- Go Fish: Respond to Ask Modal -->
   <div id="modal-gofish-respond" class="modal-overlay">
     <div class="modal-card" style="text-align: center;">
-      <h2 class="modal-title" id="gofish-respond-title">Dad asks: "Do you have any 7s?"</h2>
+      <h2 class="modal-title" id="gofish-respond-title">Opponent asks: "Do you have any 7s?"</h2>
       <p class="modal-desc">Choose your response (Warning: Liars will be caught & penalized!):</p>
       <div style="display: flex; gap: 10px; margin-top: 14px;">
         <button id="btn-gofish-handover" class="btn-primary" style="background: linear-gradient(135deg, #10b981, #059669);">🤝 Here are my cards</button>
@@ -310,13 +310,13 @@
       <h2 class="modal-title" id="room-modal-title">🌐 Online Multiplayer</h2>
       
       <div id="room-create-section">
-        <p class="modal-desc">Share this room link or code with your dad to play together instantly:</p>
+        <p class="modal-desc">Share this room link or code to play together instantly with anyone:</p>
         <div class="room-share-box">
           <span class="room-code-display" id="display-room-code">------</span>
           <button id="btn-copy-code" class="preset-chip" style="padding: 6px 12px;">📋 Copy Link</button>
         </div>
         <div style="text-align: center; margin-bottom: 15px; color: #94a3b8; font-size: 0.85rem;" id="room-status-message">
-          ⏳ Waiting for your dad to join...
+          ⏳ Waiting for opponent to join...
         </div>
       </div>
 
@@ -334,7 +334,7 @@
   <div id="modal-game-over" class="modal-overlay">
     <div class="modal-card" style="text-align: center; border-color: #fbbf24; box-shadow: 0 0 40px rgba(251, 191, 36, 0.5);">
       <div style="font-size: 2.8rem; margin-bottom: 4px;">👑</div>
-      <h2 class="modal-title" id="game-over-title" style="font-size: 1.4rem;">DAD WON THE DUEL!</h2>
+      <h2 class="modal-title" id="game-over-title" style="font-size: 1.4rem;">VICTORY!</h2>
       <p class="modal-desc" id="game-over-desc" style="font-size: 0.95rem; color: #fef08a; font-weight: 700; margin-bottom: 14px;">
         Victory celebration!
       </p>

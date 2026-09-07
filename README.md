@@ -1,4 +1,4 @@
-﻿# 🃏 Poker Duel
+# 🃏 Poker Duel
 
 A recreation of the 2-player poker game inspired by Facebook Messenger's "Play Together" card games.
 
@@ -17,7 +17,7 @@ A recreation of the 2-player poker game inspired by Facebook Messenger's "Play T
   - **Gold Glowing Highlights**: Visual aura on the exact 5 cards that make up your best combination.
 - **🌐 1-Click Online Multiplayer**:
   - Powered by **PeerJS / WebRTC** for instant browser-to-browser peer connections without needing to set up backend servers.
-  - Generates shareable 6-character room codes and 1-click links (e.g. `?room=XYZ123`) so you can send the link to your dad and play together from any phone, tablet, or PC!
+  - Generates shareable 6-character room codes and 1-click links (e.g. `?room=XYZ123`) so you can send the link to a friend or remote player and play together from any phone, tablet, or PC!
 - **🤖 Practice Mode vs DadBot (AI)**:
   - Smart AI opponent with simulated human timing and drafting/betting intelligence.
 - **👥 Pass & Play Mode**:
@@ -30,7 +30,7 @@ A recreation of the 2-player poker game inspired by Facebook Messenger's "Play T
 
 1. Open [`index.html`](file:///C:/Users/Utente/.gemini/antigravity/scratch/poker-duel/index.html) in any modern web browser (Chrome, Edge, Safari, Firefox).
 2. Choose a mode:
-   - **Play Online with Dad**: Generates a room code. Copy the link and send it to your dad!
+   - **Play Online**: Generates a room code. Copy the link and send it to anyone!
    - **Practice vs DadBot**: Jump straight into a game against the AI.
    - **Pass & Play**: Take turns on the same device.
 

@@ -32,7 +32,7 @@ class FamilyCardArcadeApp {
     });
 
     // AI Bots
-    this.pokerAI = new DadBotAI('Dad', 'balanced');
+    this.pokerAI = new DadBotAI('DadBot', 'balanced');
 
     this.initDOM();
     this.bindEvents();
@@ -258,7 +258,7 @@ class FamilyCardArcadeApp {
           this.isHost = true;
           this.localPlayerId = 0;
           if (roomCodeDisplay) roomCodeDisplay.textContent = roomId;
-          if (roomStatusMsg) roomStatusMsg.textContent = `⏳ Waiting for your dad to join (Room: ${roomId})...`;
+          if (roomStatusMsg) roomStatusMsg.textContent = `⏳ Waiting for opponent to join (Room: ${roomId})...`;
           this.updateRoomBadge(roomId);
         } catch (err) {
           console.error('Room create error:', err);
@@ -621,13 +621,19 @@ class FamilyCardArcadeApp {
     if (engine.players && engine.players.length >= 2) {
       if (this.mode === 'AI') {
         engine.players[0].name = 'You';
-        engine.players[1].name = 'Dad';
+        engine.players[1].name = 'DadBot';
+        const oppIcon = document.getElementById('opponent-avatar-icon');
+        if (oppIcon) oppIcon.textContent = '🤖';
       } else if (this.mode === 'PASS_PLAY') {
         engine.players[0].name = 'Player 1';
         engine.players[1].name = 'Player 2';
+        const oppIcon = document.getElementById('opponent-avatar-icon');
+        if (oppIcon) oppIcon.textContent = '👥';
       } else if (this.mode === 'ONLINE') {
-        engine.players[0].name = 'You (Host)';
-        engine.players[1].name = 'Dad (Guest)';
+        engine.players[0].name = this.isHost ? 'You (Host)' : 'You (Guest)';
+        engine.players[1].name = this.isHost ? 'Opponent (Guest)' : 'Host';
+        const oppIcon = document.getElementById('opponent-avatar-icon');
+        if (oppIcon) oppIcon.textContent = '👤';
       }
     }
     engine.startNewGame();
@@ -978,12 +984,13 @@ class FamilyCardArcadeApp {
     }
 
     // Center Stage: Ocean Pond
+    const oppName = opponentPlayer.name || (this.mode === 'AI' ? 'DadBot' : 'Opponent');
     if (this.centerArcadeStage) {
       this.centerArcadeStage.innerHTML = `
         <div class="ocean-pond-container">
           <div class="ocean-pond-graphic">🌊 🐟 🎣</div>
           <div class="ocean-pond-count">Ocean Stock: <strong>${state.oceanDeck.length}</strong> cards remaining</div>
-          <div class="turn-announcement">${state.turnMessage || (state.activeTurnPlayer === this.localPlayerId ? 'Your turn! Click a card below to ask Dad!' : 'Dad is thinking...')}</div>
+          <div class="turn-announcement">${state.turnMessage || (state.activeTurnPlayer === this.localPlayerId ? `Your turn! Click a card below to ask ${oppName}!` : `${oppName} is thinking...`)}</div>
         </div>
       `;
     }
@@ -997,7 +1004,7 @@ class FamilyCardArcadeApp {
         const cardEl = renderCardElement(card, { cardSize: 'medium', faceDown: false });
         if (isMyTurn) {
           cardEl.style.cursor = 'pointer';
-          cardEl.title = `Ask Dad for ${card.rank}s!`;
+          cardEl.title = `Ask ${oppName} for ${card.rank}s!`;
           cardEl.classList.add('card-playable-pulse');
           cardEl.addEventListener('click', () => {
             this.promptGoFishAsk(card.rank);
@@ -1018,7 +1025,7 @@ class FamilyCardArcadeApp {
 
     // Handle Opponent Asking You (Response Modal with Liar's Trap)
     if (state.phase === 'WAITING_RESPONSE' && state.askedPlayerId === this.localPlayerId) {
-      this.showGoFishRespondModal(state.currentAskedRank, localPlayer);
+      this.showGoFishRespondModal(state.currentAskedRank, localPlayer, opponentPlayer);
     }
   }
 
@@ -1031,20 +1038,21 @@ class FamilyCardArcadeApp {
     }
   }
 
-  showGoFishRespondModal(rank, player) {
+  showGoFishRespondModal(rank, player, opponentPlayer = null) {
+    const oppName = (opponentPlayer && opponentPlayer.name) ? opponentPlayer.name : (this.mode === 'AI' ? 'DadBot' : 'Opponent');
     const matchingCount = player.hand.filter(c => c.rank === rank).length;
     const modalPrompt = document.getElementById('gofish-respond-title') || document.getElementById('gofish-respond-prompt');
     const btnGive = document.getElementById('btn-gofish-handover') || document.getElementById('btn-gofish-give');
     const btnGoFish = document.getElementById('btn-gofish-claimfish') || document.getElementById('btn-gofish-claim');
 
     if (modalPrompt) {
-      modalPrompt.innerHTML = `Dad asks: <strong>"Do you have any ${rank}s?"</strong><br><small style="font-size: 0.8rem; color: #facc15;">(You hold ${matchingCount} of them)</small>`;
+      modalPrompt.innerHTML = `${oppName} asks: <strong>"Do you have any ${rank}s?"</strong><br><small style="font-size: 0.8rem; color: #facc15;">(You hold ${matchingCount} of them)</small>`;
     }
     if (btnGive) {
       btnGive.textContent = matchingCount > 0 ? `🤝 HERE ARE MY ${matchingCount} ${rank}(s)` : `I DON'T HAVE ANY (HONEST)`;
     }
     if (btnGoFish) {
-      btnGoFish.textContent = matchingCount > 0 ? `CLAIM "GO FISH!" (RISK LIAR'S TRAP!)` : `TELL DAD TO "GO FISH!" 🎣`;
+      btnGoFish.textContent = matchingCount > 0 ? `CLAIM "GO FISH!" (RISK LIAR'S TRAP!)` : `TELL ${oppName.toUpperCase()} TO "GO FISH!" 🎣`;
     }
 
     this.openModal('modal-gofish-respond');
