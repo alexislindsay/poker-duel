@@ -208,6 +208,8 @@ class FamilyCardArcadeApp {
     this.btnJoinSpectator = document.getElementById('btn-join-spectator');
     this.roomStatusMessage = document.getElementById('room-status-message');
     this.roomRosterList = document.getElementById('room-roster-list');
+    this.btnHostStartGame = document.getElementById('btn-host-start-game');
+    this.btnLobbyAddBot = document.getElementById('btn-lobby-add-bot');
 
     // Game Over Elements
     this.gameOverTitle = document.getElementById('game-over-title');
@@ -377,6 +379,36 @@ class FamilyCardArcadeApp {
             navigator.clipboard.writeText(this.network.roomId);
             this.showToast('📋 Room Code copied!');
           });
+        }
+      });
+    }
+
+    if (this.btnHostStartGame) {
+      this.btnHostStartGame.addEventListener('click', () => {
+        this.closeModal('modal-online-room');
+        this.startActiveGame();
+        if (this.network && this.isHost) {
+          this.network.broadcast({
+            type: 'GAME_START_SIGNAL',
+            gameType: this.activeGame,
+            state: this.getCurrentState()
+          });
+        }
+        this.showToast('🎮 Multiplayer game started! Cards dealt!');
+      });
+    }
+
+    if (this.btnLobbyAddBot) {
+      this.btnLobbyAddBot.addEventListener('click', () => {
+        if (this.seatCount < 4) {
+          this.setSeatCount(this.seatCount + 1);
+          this.showToast(`Added AI Bot to table (${this.seatCount} seats)!`);
+          if (this.isHost && this.btnHostStartGame) {
+            this.btnHostStartGame.style.display = 'block';
+            this.btnHostStartGame.textContent = `▶ START MULTIPLAYER GAME (${this.seatCount} Players)`;
+          }
+        } else {
+          this.showToast('Table is at maximum capacity (4 players).');
         }
       });
     }
@@ -644,10 +676,29 @@ class FamilyCardArcadeApp {
       if (this.roomStatusMessage) {
         this.roomStatusMessage.textContent = `✅ Ready (${activeSeats} players connected)`;
       }
+      if (this.isHost && this.btnHostStartGame) {
+        this.btnHostStartGame.style.display = 'block';
+        this.btnHostStartGame.textContent = `▶ START MULTIPLAYER GAME (${activeSeats} Players)`;
+      }
+    } else {
+      if (this.isHost && this.btnHostStartGame) {
+        this.btnHostStartGame.style.display = 'none';
+      }
     }
   }
 
   onNetworkMessage(data, fromPeerId) {
+    if (data.type === 'GAME_START_SIGNAL') {
+      this.closeModal('modal-online-room');
+      this.closeModal('modal-welcome');
+      if (typeof SoundFX !== 'undefined') SoundFX.play('shuffle');
+      if (data.gameType) this.switchGame(data.gameType);
+      if (data.state) this.latestRemoteState = data.state;
+      this.showToast('🎮 Multiplayer duel started! Dealing cards...');
+      this.render();
+      return;
+    }
+
     if (data.type === 'GAME_STATE_UPDATE') {
       this.latestRemoteState = data.state;
       this.render();
@@ -868,7 +919,18 @@ class FamilyCardArcadeApp {
 
       const isSelf = (p.id === this.localPlayerId && !this.isSpectator);
 
-      if (nameEl) nameEl.textContent = isSelf ? `${p.name} (You)` : p.name;
+      const avatarIconEl = document.getElementById(`avatar-icon-${domSeatIndex}`);
+      if (avatarIconEl) {
+        avatarIconEl.textContent = p.avatar || (p.isAi ? '🤖' : (isSelf ? '🤠' : '👩‍💼'));
+      }
+
+      let displayName = p.name;
+      if (isSelf) {
+        displayName = (p.name === 'You' || p.name === 'Player 1' || p.name === 'Player 2') ? 'You' : `${p.name} (You)`;
+      } else {
+        displayName = p.name === 'You' ? `Player ${p.id + 1}` : p.name;
+      }
+      if (nameEl) nameEl.textContent = displayName;
       if (chipsEl) chipsEl.textContent = `💰 $${p.chips}`;
 
       if (betBadgeEl) {
@@ -909,6 +971,13 @@ class FamilyCardArcadeApp {
           const segLevel = parseInt(seg.dataset.level, 10);
           seg.classList.toggle('active', segLevel <= level);
         });
+      }
+    } else {
+      if (this.assistHandName) {
+        this.assistHandName.textContent = 'Waiting for deal...';
+      }
+      if (this.meterSegments) {
+        this.meterSegments.forEach(seg => seg.classList.remove('active'));
       }
     }
 
@@ -992,12 +1061,23 @@ class FamilyCardArcadeApp {
       const domSeatIndex = this.getDomSeatIndex(p.id, players.length);
       const isSelf = (p.id === this.localPlayerId && !this.isSpectator);
 
+      const avatarIconEl = document.getElementById(`avatar-icon-${domSeatIndex}`);
+      if (avatarIconEl) {
+        avatarIconEl.textContent = p.avatar || (p.isAi ? '🤖' : (isSelf ? '🤠' : '👩‍💼'));
+      }
+
       const nameEl = document.getElementById(`player-name-${domSeatIndex}`);
       const chipsEl = document.getElementById(`player-chips-${domSeatIndex}`);
       const cardsEl = document.getElementById(`player-cards-${domSeatIndex}`);
       const infoCardEl = document.getElementById(`info-card-${domSeatIndex}`);
 
-      if (nameEl) nameEl.textContent = isSelf ? `${p.name} (You)` : p.name;
+      let displayName = p.name;
+      if (isSelf) {
+        displayName = (p.name === 'You' || p.name === 'Player 1' || p.name === 'Player 2') ? 'You' : `${p.name} (You)`;
+      } else {
+        displayName = p.name === 'You' ? `Player ${p.id + 1}` : p.name;
+      }
+      if (nameEl) nameEl.textContent = displayName;
       if (chipsEl) chipsEl.textContent = `🎴 ${p.cardCount} cards`;
       if (infoCardEl) infoCardEl.classList.toggle('active-turn', state.activePlayerId === p.id);
 
@@ -1054,12 +1134,23 @@ class FamilyCardArcadeApp {
       const domSeatIndex = this.getDomSeatIndex(p.id, players.length);
       const isSelf = (p.id === this.localPlayerId && !this.isSpectator);
 
+      const avatarIconEl = document.getElementById(`avatar-icon-${domSeatIndex}`);
+      if (avatarIconEl) {
+        avatarIconEl.textContent = p.avatar || (p.isAi ? '🤖' : (isSelf ? '🤠' : '👩‍💼'));
+      }
+
       const nameEl = document.getElementById(`player-name-${domSeatIndex}`);
       const chipsEl = document.getElementById(`player-chips-${domSeatIndex}`);
       const cardsEl = document.getElementById(`player-cards-${domSeatIndex}`);
       const infoCardEl = document.getElementById(`info-card-${domSeatIndex}`);
 
-      if (nameEl) nameEl.textContent = isSelf ? `${p.name} (You)` : `${p.name} ${state.isPartnership ? `(Team ${p.team})` : ''}`;
+      let displayName = p.name;
+      if (isSelf) {
+        displayName = (p.name === 'You' || p.name === 'Player 1' || p.name === 'Player 2') ? 'You' : `${p.name} (You)`;
+      } else {
+        displayName = p.name === 'You' ? `Player ${p.id + 1}` : `${p.name} ${state.isPartnership ? `(Team ${p.team})` : ''}`;
+      }
+      if (nameEl) nameEl.textContent = displayName;
       if (chipsEl) chipsEl.textContent = `Bid: ${p.bid !== null ? p.bid : '-'} | Tricks: ${p.tricksWon}`;
       if (infoCardEl) infoCardEl.classList.toggle('active-turn', state.activePlayerId === p.id);
 
