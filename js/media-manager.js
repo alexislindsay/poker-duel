@@ -7,6 +7,7 @@ class MediaManager {
     this.calls = new Map(); // peerId -> MediaConnection
     this.remoteStreams = new Map(); // peerId -> MediaStream
     this.peerSeatMap = new Map(); // peerId -> seatIndex (0..3) or 'spectator'
+    this.getDomSeatIndex = options.getDomSeatIndex || ((s) => s);
     
     // Audio Activity Detection
     this.audioContext = null;
@@ -222,33 +223,40 @@ class MediaManager {
 
   // Attach a MediaStream to a Player Pod video element
   attachStreamToSeat(seatIndex, stream, isMuted = false) {
-    const videoEl = document.getElementById(`player-video-${seatIndex}`);
-    const podEl = document.getElementById(`pod-seat-${seatIndex}`);
-    const avatarEl = document.getElementById(`pod-avatar-${seatIndex}`);
+    const domSeat = this.getDomSeatIndex ? this.getDomSeatIndex(seatIndex) : seatIndex;
+    const videoEl = document.getElementById(`player-video-${domSeat}`);
+    const podEl = document.getElementById(`pod-seat-${domSeat}`);
+    const avatarEl = document.getElementById(`pod-avatar-${domSeat}`);
     
     if (!videoEl) return;
 
     try {
       videoEl.srcObject = stream;
       videoEl.muted = isMuted; // Mute self, unmute others
-      videoEl.play().catch(e => console.warn(`[AV] Autoplay blocked for seat ${seatIndex}:`, e));
-      videoEl.style.display = 'block';
+      videoEl.play().catch(e => console.warn(`[AV] Autoplay blocked for seat ${seatIndex} (DOM ${domSeat}):`, e));
 
-      if (podEl) {
-        podEl.classList.add('has-video');
-      }
-      if (avatarEl) {
-        avatarEl.classList.add('avatar-video-active');
+      // Check if there are active, enabled live video tracks
+      const hasLiveVideo = stream && stream.getVideoTracks && stream.getVideoTracks().some(t => t.readyState === 'live' && t.enabled);
+
+      if (hasLiveVideo) {
+        videoEl.style.display = 'block';
+        if (podEl) podEl.classList.add('has-video');
+        if (avatarEl) avatarEl.classList.add('avatar-video-active');
+      } else {
+        videoEl.style.display = 'none';
+        if (podEl) podEl.classList.remove('has-video');
+        if (avatarEl) avatarEl.classList.remove('avatar-video-active');
       }
     } catch (e) {
-      console.error(`[AV] Failed to attach stream to seat ${seatIndex}:`, e);
+      console.error(`[AV] Failed to attach stream to seat ${seatIndex} (DOM ${domSeat}):`, e);
     }
   }
 
   detachStreamFromSeat(seatIndex) {
-    const videoEl = document.getElementById(`player-video-${seatIndex}`);
-    const podEl = document.getElementById(`pod-seat-${seatIndex}`);
-    const avatarEl = document.getElementById(`pod-avatar-${seatIndex}`);
+    const domSeat = this.getDomSeatIndex ? this.getDomSeatIndex(seatIndex) : seatIndex;
+    const videoEl = document.getElementById(`player-video-${domSeat}`);
+    const podEl = document.getElementById(`pod-seat-${domSeat}`);
+    const avatarEl = document.getElementById(`pod-avatar-${domSeat}`);
 
     if (videoEl) {
       videoEl.srcObject = null;
@@ -264,10 +272,12 @@ class MediaManager {
   }
 
   updateSeatVideoDisplay(seatIndex, isVisible) {
-    const videoEl = document.getElementById(`player-video-${seatIndex}`);
-    const avatarEl = document.getElementById(`pod-avatar-${seatIndex}`);
+    const domSeat = this.getDomSeatIndex ? this.getDomSeatIndex(seatIndex) : seatIndex;
+    const videoEl = document.getElementById(`player-video-${domSeat}`);
+    const avatarEl = document.getElementById(`pod-avatar-${domSeat}`);
     if (videoEl) {
       videoEl.style.opacity = isVisible ? '1' : '0';
+      videoEl.style.display = isVisible ? 'block' : 'none';
     }
     if (avatarEl) {
       if (isVisible) {
@@ -362,7 +372,8 @@ class MediaManager {
   }
 
   setSeatSpeaking(seatIndex, isSpeaking) {
-    const pod = document.getElementById(`pod-seat-${seatIndex}`);
+    const domSeat = this.getDomSeatIndex ? this.getDomSeatIndex(seatIndex) : seatIndex;
+    const pod = document.getElementById(`pod-seat-${domSeat}`);
     if (pod) {
       if (isSpeaking) {
         pod.classList.add('is-speaking');

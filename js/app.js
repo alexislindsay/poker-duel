@@ -30,6 +30,7 @@ class FamilyCardArcadeApp {
 
     // Media Manager (WebRTC Video & Voice)
     this.media = new MediaManager({
+      getDomSeatIndex: (seat) => this.getDomSeatIndex(seat, this.seatCount),
       onStreamAdded: (info) => this.onMediaStreamAdded(info),
       onStreamRemoved: (info) => this.onMediaStreamRemoved(info),
       onSpeakingChange: (info) => this.onSpeakingChange(info),
@@ -574,6 +575,16 @@ class FamilyCardArcadeApp {
   /* =========================================================================
      MULTIPLAYER NETWORKING & ROOMS
      ========================================================================= */
+  updateRoomBadge(roomCode) {
+    const code = roomCode || (this.network ? this.network.roomId : null);
+    if (code && code !== 'null' && code !== 'undefined' && code !== '------') {
+      if (this.roomBadge) this.roomBadge.style.display = 'flex';
+      if (this.roomBadgeText) this.roomBadgeText.innerHTML = `Room: <strong>${code}</strong>`;
+    } else {
+      if (this.roomBadge) this.roomBadge.style.display = 'none';
+    }
+  }
+
   async openHostRoomModal() {
     this.mode = 'ONLINE';
     this.isHost = true;
@@ -587,8 +598,7 @@ class FamilyCardArcadeApp {
 
       const code = await this.network.createRoom(null, 'Player 1 (Host)');
       if (this.displayRoomCode) this.displayRoomCode.textContent = code;
-      if (this.roomBadge) this.roomBadge.style.display = 'flex';
-      if (this.roomBadgeText) this.roomBadgeText.innerHTML = `Room: <strong>${code}</strong>`;
+      this.updateRoomBadge(code);
       if (this.btnShareRoom) this.btnShareRoom.style.display = 'flex';
       if (this.roomStatusMessage) this.roomStatusMessage.textContent = '⏳ Waiting for other player(s) to join...';
 
@@ -611,8 +621,7 @@ class FamilyCardArcadeApp {
       const roomId = await this.network.joinRoom(code, asSpectator ? 'Spectator' : 'Player 2', asSpectator);
       
       this.closeModal('modal-online-room');
-      if (this.roomBadge) this.roomBadge.style.display = 'flex';
-      if (this.roomBadgeText) this.roomBadgeText.innerHTML = `Room: <strong>${roomId}</strong>`;
+      this.updateRoomBadge(roomId);
       if (this.spectatorBadge) this.spectatorBadge.style.display = asSpectator ? 'flex' : 'none';
 
       this.localPlayerId = this.network.mySeatIndex !== null ? this.network.mySeatIndex : 1;
@@ -627,6 +636,9 @@ class FamilyCardArcadeApp {
 
   onNetworkConnected(info) {
     console.log('[App] Network connected:', info);
+    if (info && info.roomId) {
+      this.updateRoomBadge(info.roomId);
+    }
     if (this.network.peer) {
       const roster = info.roster || [];
       roster.forEach(p => {
@@ -926,9 +938,13 @@ class FamilyCardArcadeApp {
 
       let displayName = p.name;
       if (isSelf) {
-        displayName = (p.name === 'You' || p.name === 'Player 1' || p.name === 'Player 2') ? 'You' : `${p.name} (You)`;
+        displayName = 'You';
       } else {
-        displayName = p.name === 'You' ? `Player ${p.id + 1}` : p.name;
+        if (p.isAi) {
+          displayName = p.name;
+        } else {
+          displayName = (p.name === 'You' || p.name === 'DadBot') ? `Player ${p.id + 1}` : p.name;
+        }
       }
       if (nameEl) nameEl.textContent = displayName;
       if (chipsEl) chipsEl.textContent = `💰 $${p.chips}`;
@@ -1073,9 +1089,13 @@ class FamilyCardArcadeApp {
 
       let displayName = p.name;
       if (isSelf) {
-        displayName = (p.name === 'You' || p.name === 'Player 1' || p.name === 'Player 2') ? 'You' : `${p.name} (You)`;
+        displayName = 'You';
       } else {
-        displayName = p.name === 'You' ? `Player ${p.id + 1}` : p.name;
+        if (p.isAi) {
+          displayName = p.name;
+        } else {
+          displayName = (p.name === 'You' || p.name === 'DadBot') ? `Player ${p.id + 1}` : p.name;
+        }
       }
       if (nameEl) nameEl.textContent = displayName;
       if (chipsEl) chipsEl.textContent = `🎴 ${p.cardCount} cards`;
@@ -1146,9 +1166,13 @@ class FamilyCardArcadeApp {
 
       let displayName = p.name;
       if (isSelf) {
-        displayName = (p.name === 'You' || p.name === 'Player 1' || p.name === 'Player 2') ? 'You' : `${p.name} (You)`;
+        displayName = 'You';
       } else {
-        displayName = p.name === 'You' ? `Player ${p.id + 1}` : `${p.name} ${state.isPartnership ? `(Team ${p.team})` : ''}`;
+        if (p.isAi) {
+          displayName = p.name;
+        } else {
+          displayName = (p.name === 'You' || p.name === 'DadBot') ? `Player ${p.id + 1}` : `${p.name} ${state.isPartnership ? `(Team ${p.team})` : ''}`;
+        }
       }
       if (nameEl) nameEl.textContent = displayName;
       if (chipsEl) chipsEl.textContent = `Bid: ${p.bid !== null ? p.bid : '-'} | Tricks: ${p.tricksWon}`;
