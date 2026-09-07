@@ -44,14 +44,36 @@ class MediaManager {
     });
   }
 
-  // Request user camera & mic permissions and start stream
+  // Request user camera & mic permissions and start stream with graceful fallbacks
   async startMedia(constraints = { video: true, audio: true }) {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      console.warn('[AV] getUserMedia not supported in this browser/context');
+      return null;
+    }
+
     try {
       if (this.localStream) {
         this.stopMedia();
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      let stream = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (videoErr) {
+        console.warn('[AV] Video+Audio capture failed, trying audio-only...', videoErr);
+        if (constraints.video) {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          } catch (audioErr) {
+            console.warn('[AV] Audio-only capture also failed:', audioErr);
+          }
+        }
+      }
+
+      if (!stream) {
+        return null;
+      }
+
       this.localStream = stream;
       this.isMediaActive = true;
       this.isAudioEnabled = stream.getAudioTracks().some(t => t.enabled);
@@ -74,9 +96,8 @@ class MediaManager {
 
       return stream;
     } catch (err) {
-      console.error('[AV] Failed to access media devices:', err);
-      this.onError(err);
-      throw err;
+      console.warn('[AV] Media initialization notice:', err);
+      return null;
     }
   }
 
