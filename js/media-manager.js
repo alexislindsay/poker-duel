@@ -13,6 +13,7 @@ class MediaManager {
     this.audioContext = null;
     this.localAnalyser = null;
     this.remoteAnalysers = new Map(); // peerId -> AnalyserNode
+    this.remoteAudioElements = new Map(); // peerId -> HTMLAudioElement
     this.analyserInterval = null;
 
     // State
@@ -208,6 +209,26 @@ class MediaManager {
     call.on('stream', (remoteStream) => {
       console.log(`[AV] Received remote stream from peer: ${peerId}`);
       this.remoteStreams.set(peerId, remoteStream);
+
+      // Dedicated audio element to guarantee remote voice chat plays reliably
+      try {
+        let audioEl = this.remoteAudioElements.get(peerId);
+        if (!audioEl) {
+          audioEl = document.createElement('audio');
+          audioEl.id = `remote-audio-${peerId}`;
+          audioEl.autoplay = true;
+          audioEl.playsInline = true;
+          audioEl.style.display = 'none';
+          document.body.appendChild(audioEl);
+          this.remoteAudioElements.set(peerId, audioEl);
+        }
+        audioEl.srcObject = remoteStream;
+        audioEl.muted = false;
+        audioEl.volume = 1.0;
+        audioEl.play().catch(e => console.warn(`[AV] Remote audio autoplay notice for ${peerId}:`, e));
+      } catch (err) {
+        console.warn(`[AV] Failed to setup dedicated audio element for ${peerId}:`, err);
+      }
       
       const seatIndex = this.peerSeatMap.get(peerId);
       this.setupRemoteAudioAnalyser(peerId, remoteStream);
@@ -435,10 +456,30 @@ class MediaManager {
     }
   }
 
+  resumeAllAudio() {
+    this.initAudioContext();
+    this.remoteAudioElements.forEach((audioEl, peerId) => {
+      if (audioEl && audioEl.srcObject) {
+        audioEl.muted = false;
+        audioEl.volume = 1.0;
+        audioEl.play().catch(e => console.warn(`[AV] Audio play notice for ${peerId}:`, e));
+      }
+    });
+  }
+
   cleanupPeer(peerId) {
     const seatIndex = this.peerSeatMap.get(peerId);
     if (seatIndex !== undefined && seatIndex !== null && seatIndex !== 'spectator') {
       this.detachStreamFromSeat(seatIndex);
+    }
+    const audioEl = this.remoteAudioElements.get(peerId);
+    if (audioEl) {
+      try {
+        audioEl.pause();
+        audioEl.srcObject = null;
+        if (audioEl.parentNode) audioEl.parentNode.removeChild(audioEl);
+      } catch (e) {}
+      this.remoteAudioElements.delete(peerId);
     }
     this.calls.delete(peerId);
     this.remoteStreams.delete(peerId);
@@ -474,6 +515,15 @@ class MediaManager {
     this.calls.clear();
     this.remoteStreams.clear();
     this.peerSeatMap.clear();
+
+    this.remoteAudioElements.forEach(audioEl => {
+      try {
+        audioEl.pause();
+        audioEl.srcObject = null;
+        if (audioEl.parentNode) audioEl.parentNode.removeChild(audioEl);
+      } catch (e) {}
+    });
+    this.remoteAudioElements.clear();
   }
 }
 

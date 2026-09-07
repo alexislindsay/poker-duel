@@ -56,14 +56,14 @@ class NetworkManager {
   }
 
   // Host creates a room
-  createRoom(customCode = null, hostName = 'Host') {
+  createRoom(customCode = null, hostName = 'Host', retryCount = 0) {
     return new Promise((resolve, reject) => {
       this.isHost = true;
       this.localName = hostName;
       this.myRole = 'player';
       this.mySeatIndex = 0;
-      this.roomId = customCode || NetworkManager.generateRoomCode();
-      const peerId = `${this.getPrefix()}${this.roomId.toUpperCase()}`;
+      this.roomId = (customCode || this.roomId || NetworkManager.generateRoomCode()).toUpperCase().trim().replace(/[^A-Z0-9]/g, '');
+      const peerId = `${this.getPrefix()}${this.roomId}`;
 
       try {
         if (typeof Peer === 'undefined') {
@@ -78,9 +78,13 @@ class NetworkManager {
         let isResolved = false;
         const timer = setTimeout(() => {
           if (!isResolved) {
-            console.warn('[P2P] Room creation timed out on initial ID, retrying with fresh ID...');
-            const freshCode = NetworkManager.generateRoomCode();
-            this.createRoom(freshCode, hostName).then(resolve).catch(reject);
+            console.warn('[P2P] Room creation timed out, attempting fresh connection...');
+            if (retryCount < 2) {
+              this.createRoom(this.roomId, hostName, retryCount + 1).then(resolve).catch(reject);
+            } else {
+              const freshCode = NetworkManager.generateRoomCode();
+              this.createRoom(freshCode, hostName).then(resolve).catch(reject);
+            }
           }
         }, 8000);
 
@@ -115,8 +119,15 @@ class NetworkManager {
           this.onError(err);
           if (err.type === 'unavailable-id') {
             clearTimeout(timer);
-            const newCode = NetworkManager.generateRoomCode();
-            this.createRoom(newCode, hostName).then(resolve).catch(reject);
+            if (customCode && retryCount < 3) {
+              console.log(`[P2P] ID ${peerId} busy at broker (refreshing host), retrying in 1.5s (attempt ${retryCount + 1})...`);
+              setTimeout(() => {
+                this.createRoom(customCode, hostName, retryCount + 1).then(resolve).catch(reject);
+              }, 1500);
+            } else {
+              const newCode = NetworkManager.generateRoomCode();
+              this.createRoom(newCode, hostName).then(resolve).catch(reject);
+            }
           } else if (!isResolved) {
             clearTimeout(timer);
             reject(err);
@@ -129,7 +140,7 @@ class NetworkManager {
   }
 
   // Join an existing room (as player or spectator)
-  joinRoom(roomCode, playerName = 'Guest', asSpectator = false) {
+  joinRoom(roomCode, playerName = 'Guest', asSpectator = false, preferredSeat = null) {
     return new Promise((resolve, reject) => {
       this.isHost = false;
       this.localName = playerName;
@@ -157,7 +168,8 @@ class NetworkManager {
             reliable: true,
             metadata: {
               name: this.localName,
-              role: this.myRole
+              role: this.myRole,
+              preferredSeat: preferredSeat
             }
           });
 
@@ -192,7 +204,6 @@ class NetworkManager {
       let assignedRole = requestedRole;
 
       if (requestedRole === 'player') {
-        // Find next open seat 1, 2, 3
         const occupiedSeats = new Set();
         this.peerInfoMap.forEach(info => {
           if (info.role === 'player' && info.seatIndex !== null) {
@@ -200,10 +211,16 @@ class NetworkManager {
           }
         });
 
-        for (let s = 1; s < this.maxPlayers; s++) {
-          if (!occupiedSeats.has(s)) {
-            assignedSeat = s;
-            break;
+        // Check if client requested their previously assigned seat (reconnect)
+        if (meta.preferredSeat !== null && meta.preferredSeat !== undefined && !occupiedSeats.has(meta.preferredSeat) && meta.preferredSeat > 0 && meta.preferredSeat < this.maxPlayers) {
+          assignedSeat = meta.preferredSeat;
+        } else {
+          // Find next open seat 1, 2, 3
+          for (let s = 1; s < this.maxPlayers; s++) {
+            if (!occupiedSeats.has(s)) {
+              assignedSeat = s;
+              break;
+            }
           }
         }
 
