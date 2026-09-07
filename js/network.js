@@ -1,19 +1,25 @@
-// js/network.js - PeerJS WebRTC P2P Multiplayer Manager
+// js/network.js - PeerJS WebRTC P2P Multiplayer & Multi-Peer Room Manager
 
 class NetworkManager {
   constructor(options = {}) {
     this.isHost = false;
     this.peer = null;
-    this.conn = null;
+    this.connections = new Map(); // peerId -> DataConnection
+    this.peerInfoMap = new Map(); // peerId -> { name, role, seatIndex }
     this.roomId = null;
-    this.connected = false;
+    this.localPeerId = null;
+    this.localName = options.localName || 'Player 1';
+    this.myRole = 'player'; // 'player' or 'spectator'
+    this.mySeatIndex = 0;
+    this.maxPlayers = 4;
+
     this.onConnected = options.onConnected || (() => {});
     this.onDisconnected = options.onDisconnected || (() => {});
     this.onMessage = options.onMessage || (() => {});
+    this.onRosterChange = options.onRosterChange || (() => {});
     this.onError = options.onError || (() => {});
   }
 
-  // Generate a friendly 6-char alphanumeric room code
   static generateRoomCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = '';
@@ -24,13 +30,38 @@ class NetworkManager {
   }
 
   getPrefix() {
-    return 'pokerduel-v1-';
+    return 'pokerduel-v2-';
   }
 
-  // Host a new game room
-  createRoom(customCode = null) {
+  getIceServers() {
+    return [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:global.stun.twilio.com:3478' },
+      {
+        urls: 'turn:openrelay.metered.ca:80',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      },
+      {
+        urls: 'turn:openrelay.metered.ca:443',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      },
+      {
+        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      }
+    ];
+  }
+
+  // Host creates a room
+  createRoom(customCode = null, hostName = 'Host') {
     return new Promise((resolve, reject) => {
       this.isHost = true;
+      this.localName = hostName;
+      this.myRole = 'player';
+      this.mySeatIndex = 0;
       this.roomId = customCode || NetworkManager.generateRoomCode();
       const peerId = `${this.getPrefix()}${this.roomId.toUpperCase()}`;
 
@@ -39,62 +70,38 @@ class NetworkManager {
           return reject(new Error('PeerJS library is not loaded.'));
         }
 
-        if (this.peer) {
-          try { this.peer.destroy(); } catch (e) {}
-          this.peer = null;
-        }
-
-        let isResolved = false;
-        const timeout = setTimeout(() => {
-          if (!isResolved) {
-            console.warn('[P2P] Peer creation taking longer than expected...');
-          }
-        }, 8000);
+        this.disconnect();
 
         this.peer = new Peer(peerId, {
           debug: 1,
-          config: {
-            iceServers: [
-              { urls: 'stun:stun.l.google.com:19302' },
-              { urls: 'stun:global.stun.twilio.com:3478' },
-              {
-                urls: 'turn:openrelay.metered.ca:80',
-                username: 'openrelayproject',
-                credential: 'openrelayproject'
-              },
-              {
-                urls: 'turn:openrelay.metered.ca:443',
-                username: 'openrelayproject',
-                credential: 'openrelayproject'
-              },
-              {
-                urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-                username: 'openrelayproject',
-                credential: 'openrelayproject'
-              }
-            ]
-          }
+          config: { iceServers: this.getIceServers() }
         });
 
         this.peer.on('open', (id) => {
-          isResolved = true;
-          clearTimeout(timeout);
-          console.log(`[P2P] Room created with code: ${this.roomId} (Peer ID: ${id})`);
+          this.localPeerId = id;
+          console.log(`[P2P] Multi-peer room created: ${this.roomId} (Host ID: ${id})`);
+          
+          this.peerInfoMap.set(id, {
+            peerId: id,
+            name: this.localName,
+            role: 'player',
+            seatIndex: 0
+          });
+
           resolve(this.roomId);
         });
 
         this.peer.on('connection', (conn) => {
-          console.log('[P2P] Incoming connection from opponent...');
-          this.setupConnection(conn);
+          console.log(`[P2P Host] Incoming connection from: ${conn.peer}`);
+          this.setupHostConnection(conn);
         });
 
         this.peer.on('error', (err) => {
-          console.error('[P2P] Peer error:', err);
+          console.error('[P2P] Host peer error:', err);
           this.onError(err);
-          // If code already taken, regenerate
           if (err.type === 'unavailable-id') {
             const newCode = NetworkManager.generateRoomCode();
-            this.createRoom(newCode).then(resolve).catch(reject);
+            this.createRoom(newCode, hostName).then(resolve).catch(reject);
           } else {
             reject(err);
           }
@@ -105,11 +112,13 @@ class NetworkManager {
     });
   }
 
-  // Join an existing game room by code
-  joinRoom(roomCode) {
+  // Join an existing room (as player or spectator)
+  joinRoom(roomCode, playerName = 'Guest', asSpectator = false) {
     return new Promise((resolve, reject) => {
       this.isHost = false;
-      this.roomId = roomCode.trim().toUpperCase();
+      this.localName = playerName;
+      this.myRole = asSpectator ? 'spectator' : 'player';
+      this.roomId = (roomCode || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
       const hostPeerId = `${this.getPrefix()}${this.roomId}`;
 
       try {
@@ -117,44 +126,36 @@ class NetworkManager {
           return reject(new Error('PeerJS library is not loaded.'));
         }
 
+        this.disconnect();
+
         this.peer = new Peer({
           debug: 1,
-          config: {
-            iceServers: [
-              { urls: 'stun:stun.l.google.com:19302' },
-              { urls: 'stun:global.stun.twilio.com:3478' },
-              {
-                urls: 'turn:openrelay.metered.ca:80',
-                username: 'openrelayproject',
-                credential: 'openrelayproject'
-              },
-              {
-                urls: 'turn:openrelay.metered.ca:443',
-                username: 'openrelayproject',
-                credential: 'openrelayproject'
-              },
-              {
-                urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-                username: 'openrelayproject',
-                credential: 'openrelayproject'
-              }
-            ]
-          }
+          config: { iceServers: this.getIceServers() }
         });
 
-        this.peer.on('open', () => {
-          console.log(`[P2P] Connecting to host: ${hostPeerId}...`);
-          const conn = this.peer.connect(hostPeerId, { reliable: true });
-          this.setupConnection(conn);
+        this.peer.on('open', (id) => {
+          this.localPeerId = id;
+          console.log(`[P2P Guest] Connected with ID: ${id}, joining host: ${hostPeerId}...`);
           
-          conn.on('open', () => {
-            console.log('[P2P] Connected to host!');
-            resolve(this.roomId);
+          const conn = this.peer.connect(hostPeerId, {
+            reliable: true,
+            metadata: {
+              name: this.localName,
+              role: this.myRole
+            }
           });
+
+          this.setupGuestConnection(conn, resolve, reject);
+        });
+
+        // Also allow other guests to connect directly for mesh AV if needed
+        this.peer.on('connection', (conn) => {
+          console.log(`[P2P Guest] Direct mesh connection from: ${conn.peer}`);
+          this.setupDirectMeshConnection(conn);
         });
 
         this.peer.on('error', (err) => {
-          console.error('[P2P] Join error:', err);
+          console.error('[P2P] Guest join error:', err);
           this.onError(err);
           reject(err);
         });
@@ -164,45 +165,228 @@ class NetworkManager {
     });
   }
 
-  setupConnection(conn) {
-    this.conn = conn;
+  // HOST: Setup incoming guest connection
+  setupHostConnection(conn) {
+    this.connections.set(conn.peer, conn);
 
     conn.on('open', () => {
-      this.connected = true;
-      this.onConnected({ isHost: this.isHost, roomId: this.roomId });
+      const meta = conn.metadata || {};
+      const requestedRole = meta.role || 'player';
+      let assignedSeat = null;
+      let assignedRole = requestedRole;
+
+      if (requestedRole === 'player') {
+        // Find next open seat 1, 2, 3
+        const occupiedSeats = new Set();
+        this.peerInfoMap.forEach(info => {
+          if (info.role === 'player' && info.seatIndex !== null) {
+            occupiedSeats.add(info.seatIndex);
+          }
+        });
+
+        for (let s = 1; s < this.maxPlayers; s++) {
+          if (!occupiedSeats.has(s)) {
+            assignedSeat = s;
+            break;
+          }
+        }
+
+        if (assignedSeat === null) {
+          // Table full, assign as spectator
+          assignedRole = 'spectator';
+        }
+      }
+
+      const clientInfo = {
+        peerId: conn.peer,
+        name: meta.name || `Player ${this.peerInfoMap.size + 1}`,
+        role: assignedRole,
+        seatIndex: assignedSeat
+      };
+
+      this.peerInfoMap.set(conn.peer, clientInfo);
+
+      // Send welcome assignment to new client
+      conn.send({
+        type: 'ROOM_JOIN_ACK',
+        roomId: this.roomId,
+        yourInfo: clientInfo,
+        roster: Array.from(this.peerInfoMap.values())
+      });
+
+      // Broadcast roster update to all clients
+      this.broadcastRoster();
+
+      this.onConnected({
+        peerId: conn.peer,
+        info: clientInfo,
+        roster: Array.from(this.peerInfoMap.values())
+      });
     });
 
     conn.on('data', (data) => {
-      this.onMessage(data);
+      this.handleIncomingData(conn.peer, data);
     });
 
     conn.on('close', () => {
-      console.log('[P2P] Connection closed');
-      this.connected = false;
+      console.log(`[P2P Host] Peer disconnected: ${conn.peer}`);
+      this.handlePeerDisconnect(conn.peer);
+    });
+
+    conn.on('error', (err) => {
+      console.error(`[P2P Host] Error with peer ${conn.peer}:`, err);
+      this.handlePeerDisconnect(conn.peer);
+    });
+  }
+
+  // GUEST: Setup connection with host
+  setupGuestConnection(conn, resolve, reject) {
+    this.connections.set(conn.peer, conn);
+
+    conn.on('open', () => {
+      console.log('[P2P Guest] Connected to Host channel.');
+    });
+
+    conn.on('data', (data) => {
+      if (data && data.type === 'ROOM_JOIN_ACK') {
+        this.myRole = data.yourInfo.role;
+        this.mySeatIndex = data.yourInfo.seatIndex;
+        console.log(`[P2P Guest] Joined room ${data.roomId} as ${this.myRole} (Seat ${this.mySeatIndex})`);
+        
+        this.updateRoster(data.roster);
+        if (resolve) resolve(this.roomId);
+        this.onConnected({ isHost: false, roomId: this.roomId, yourInfo: data.yourInfo, roster: data.roster });
+        return;
+      }
+
+      this.handleIncomingData(conn.peer, data);
+    });
+
+    conn.on('close', () => {
+      console.log('[P2P Guest] Lost connection to Host.');
+      this.connections.delete(conn.peer);
       this.onDisconnected();
     });
 
     conn.on('error', (err) => {
-      console.error('[P2P] Connection error:', err);
+      console.error('[P2P Guest] Connection error:', err);
+      if (reject) reject(err);
       this.onError(err);
     });
   }
 
+  // Direct mesh connection between guests
+  setupDirectMeshConnection(conn) {
+    this.connections.set(conn.peer, conn);
+    conn.on('data', (data) => {
+      this.handleIncomingData(conn.peer, data);
+    });
+    conn.on('close', () => {
+      this.connections.delete(conn.peer);
+    });
+  }
+
+  handleIncomingData(fromPeerId, data) {
+    if (!data) return;
+
+    if (data.type === 'ROSTER_UPDATE') {
+      this.updateRoster(data.roster);
+      return;
+    }
+
+    if (this.isHost && data.type === 'ACTION_REQUEST') {
+      // Host receives client action and processes it
+      this.onMessage(data, fromPeerId);
+      return;
+    }
+
+    this.onMessage(data, fromPeerId);
+  }
+
+  handlePeerDisconnect(peerId) {
+    this.connections.delete(peerId);
+    this.peerInfoMap.delete(peerId);
+    this.broadcastRoster();
+    this.onDisconnected(peerId);
+  }
+
+  broadcastRoster() {
+    const roster = Array.from(this.peerInfoMap.values());
+    this.broadcast({
+      type: 'ROSTER_UPDATE',
+      roster: roster
+    });
+    this.onRosterChange(roster);
+  }
+
+  updateRoster(roster) {
+    this.peerInfoMap.clear();
+    roster.forEach(info => {
+      this.peerInfoMap.set(info.peerId, info);
+      if (info.peerId === this.localPeerId) {
+        this.myRole = info.role;
+        this.mySeatIndex = info.seatIndex;
+      }
+    });
+    this.onRosterChange(roster);
+  }
+
+  getRoster() {
+    return Array.from(this.peerInfoMap.values());
+  }
+
+  getPlayers() {
+    return this.getRoster().filter(p => p.role === 'player' && p.seatIndex !== null);
+  }
+
+  getSpectators() {
+    return this.getRoster().filter(p => p.role === 'spectator');
+  }
+
+  // Send message to all connected peers
+  broadcast(data) {
+    const json = (typeof data === 'object') ? data : { message: data };
+    this.connections.forEach(conn => {
+      if (conn.open) {
+        try {
+          conn.send(json);
+        } catch (e) {
+          console.warn('[P2P] Broadcast send failed:', e);
+        }
+      }
+    });
+  }
+
+  // Send to host or specific peer
   send(data) {
-    if (this.conn && this.connected) {
-      this.conn.send(data);
+    if (this.isHost) {
+      this.broadcast(data);
+    } else {
+      // Send to host connection
+      this.connections.forEach(conn => {
+        if (conn.open) {
+          try {
+            conn.send(data);
+          } catch (e) {}
+        }
+      });
     }
   }
 
   disconnect() {
-    if (this.conn) {
-      this.conn.close();
-    }
+    this.connections.forEach(conn => {
+      try { conn.close(); } catch (e) {}
+    });
+    this.connections.clear();
+    this.peerInfoMap.clear();
+
     if (this.peer) {
-      this.peer.destroy();
+      try { this.peer.destroy(); } catch (e) {}
+      this.peer = null;
     }
-    this.connected = false;
+
     this.roomId = null;
+    this.localPeerId = null;
   }
 }
 

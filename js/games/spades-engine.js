@@ -1,10 +1,10 @@
-// js/games/spades-engine.js - 2-Player Spades Duel with Drafting & Jokers
+// js/games/spades-engine.js - 2 to 4 Player Spades Engine (Drafting Duel & 4-Player Partnership)
 
 const SPADES_PHASES = {
   NOT_STARTED: 'NOT_STARTED',
-  DRAFTING: 'DRAFTING',          // 13-card 2-player Keep/Discard draft
-  BIDDING: 'BIDDING',            // Both players enter trick bids
-  TRICK_PLAYING: 'TRICK_PLAYING',// 13 trick rounds
+  DRAFTING: 'DRAFTING',          // For 2-player mode
+  BIDDING: 'BIDDING',            // All players enter trick bids
+  TRICK_PLAYING: 'TRICK_PLAYING',// Trick rounds (13 tricks)
   ROUND_OVER: 'ROUND_OVER',
   GAME_OVER: 'GAME_OVER'
 };
@@ -13,13 +13,12 @@ class SpadesEngine {
   constructor(options = {}) {
     this.onStateChange = options.onStateChange || (() => {});
     this.onEvent = options.onEvent || (() => {});
+    this.numPlayers = options.numPlayers || 2;
+    this.customPlayerConfigs = options.playersConfig || null;
+    this.isPartnership = (this.numPlayers === 4); // 4-player default to partnership
 
-    this.players = [
-      { id: 0, name: 'Player 1', hand: [], bid: 0, tricksWon: 0, score: 0, bags: 0 },
-      { id: 1, name: 'Player 2', hand: [], bid: 0, tricksWon: 0, score: 0, bags: 0 }
-    ];
-
-    this.deck = new Deck(true); // Deck with Jokers!
+    this.initPlayers();
+    this.deck = new Deck(true); // Deck with Jokers
     this.phase = SPADES_PHASES.NOT_STARTED;
     this.activePlayerId = 0;
     this.spadesBroken = false;
@@ -29,11 +28,41 @@ class SpadesEngine {
     this.trickNumber = 1;
     this.winner = null;
     this.lastAction = null;
+    this.teamScores = { team1: 0, team2: 0, bags1: 0, bags2: 0 };
+  }
+
+  setPlayerCount(count, playerConfigs = null, isPartnership = true) {
+    this.numPlayers = Math.max(2, Math.min(4, count));
+    this.customPlayerConfigs = playerConfigs;
+    this.isPartnership = (this.numPlayers === 4) && isPartnership;
+    this.initPlayers();
+    this.startNewGame();
+  }
+
+  initPlayers() {
+    const defaultNames = ['You', 'Player 2', 'Player 3', 'Player 4'];
+    const defaultAvatars = ['🤠', '🤖', '👩‍💼', '😎'];
+
+    this.players = [];
+    for (let i = 0; i < this.numPlayers; i++) {
+      const cfg = (this.customPlayerConfigs && this.customPlayerConfigs[i]) || {};
+      this.players.push({
+        id: i,
+        name: cfg.name || defaultNames[i] || `Player ${i + 1}`,
+        avatar: cfg.avatar || defaultAvatars[i] || '👤',
+        isAi: cfg.isAi !== undefined ? cfg.isAi : (i > 0),
+        team: (i % 2 === 0) ? 1 : 2, // Seat 0 & 2 Team 1 (South/North), Seat 1 & 3 Team 2 (West/East)
+        hand: [],
+        bid: null,
+        tricksWon: 0,
+        score: 0,
+        bags: 0
+      });
+    }
   }
 
   startNewGame() {
     this.deck.reset();
-    this.phase = SPADES_PHASES.DRAFTING;
     this.activePlayerId = 0;
     this.spadesBroken = false;
     this.currentTrick = [];
@@ -46,19 +75,46 @@ class SpadesEngine {
       p.tricksWon = 0;
     }
 
-    this.drawNextDraftCard();
-    this.lastAction = { text: 'Drafting started! Inspect the card and choose to KEEP or DISCARD.' };
-    this.onEvent({ type: 'SPADES_DRAFT_STARTED' });
+    if (this.numPlayers === 2) {
+      // 2-Player Draft Mode
+      this.phase = SPADES_PHASES.DRAFTING;
+      this.drawNextDraftCard();
+      this.lastAction = { text: '2-Player Drafting started! Inspect cards and choose KEEP or DISCARD.' };
+      this.onEvent({ type: 'SPADES_DRAFT_STARTED' });
+    } else {
+      // 3 or 4 Players: Direct Deal!
+      const cardsPerPlayer = Math.floor(52 / this.numPlayers);
+      for (let i = 0; i < cardsPerPlayer; i++) {
+        for (const p of this.players) {
+          p.hand.push(this.deck.draw());
+        }
+      }
+      this.sortHands();
+      this.phase = SPADES_PHASES.BIDDING;
+      this.activePlayerId = 0;
+      this.lastAction = { text: `${this.numPlayers}-Player Spades started! Enter your trick bids.` };
+      this.onEvent({ type: 'SPADES_BIDDING_STARTED' });
+    }
+
     this.notifyState();
   }
 
+  sortHands() {
+    const suitOrder = { '♠': 4, '♥': 3, '♣': 2, '♦': 1 };
+    for (const p of this.players) {
+      p.hand.sort((a, b) => {
+        if (a.suit !== b.suit) return suitOrder[b.suit] - suitOrder[a.suit];
+        return b.value - a.value;
+      });
+    }
+  }
+
   drawNextDraftCard() {
-    if (this.players[0].hand.length >= 13 && this.players[1].hand.length >= 13) {
-      // Draft complete! Proceed to Bidding Phase
+    if (this.players.every(p => p.hand.length >= 13)) {
       this.sortHands();
       this.phase = SPADES_PHASES.BIDDING;
       this.currentDraftCard = null;
-      this.lastAction = { text: 'Drafting complete (13 cards each). Enter your trick bids!' };
+      this.lastAction = { text: 'Drafting complete. Enter your trick bids!' };
       this.onEvent({ type: 'SPADES_BIDDING_STARTED' });
       this.notifyState();
       return;
@@ -79,108 +135,73 @@ class SpadesEngine {
     const card = this.currentDraftCard;
 
     if (decision === 'keep') {
-      // Player keeps this card
       player.hand.push(card);
-      // Burn the next card face-down
-      this.deck.draw();
+      this.deck.draw(); // Burn next card
       this.lastAction = { playerId, action: 'keep', text: `${player.name} kept a card.` };
     } else {
-      // Player discards this card, and is forced to take the next mystery card!
       const mystery = this.deck.draw();
       if (mystery) player.hand.push(mystery);
-      this.lastAction = { playerId, action: 'discard', text: `${player.name} discarded and took the mystery card.` };
+      this.lastAction = { playerId, action: 'discard', text: `${player.name} discarded and took mystery card.` };
     }
 
     this.currentDraftCard = null;
-    // Alternate turn
-    this.activePlayerId = 1 - this.activePlayerId;
+    this.activePlayerId = (this.activePlayerId + 1) % this.numPlayers;
     this.drawNextDraftCard();
     return true;
   }
 
-  playerKeepDraftCard(playerId) {
-    return this.handleDraftDecision(playerId, 'keep');
-  }
-
-  playerDiscardDraftCard(playerId) {
-    return this.handleDraftDecision(playerId, 'discard');
-  }
-
-  startNextRound() {
-    this.startNewGame();
-  }
-
-  sortHands() {
-    const suitOrder = { '♠': 4, '♥': 3, '♦': 2, '♣': 1, 'BIG': 5, 'LITTLE': 5 };
-    for (const p of this.players) {
-      p.hand.sort((a, b) => {
-        const sA = suitOrder[a.suit] || 0;
-        const sB = suitOrder[b.suit] || 0;
-        if (sA !== sB) return sB - sA;
-        return b.value - a.value;
-      });
-    }
-  }
-
-  // Set trick bid (0 to 13)
-  submitBid(playerId, bidAmount) {
+  submitBid(playerId, bid) {
     if (this.phase !== SPADES_PHASES.BIDDING) return false;
+    if (playerId !== this.activePlayerId) return false;
+
     const player = this.players[playerId];
-    player.bid = Math.max(0, Math.min(13, parseInt(bidAmount, 10)));
+    player.bid = Math.max(0, Math.min(13, parseInt(bid, 10) || 0));
 
-    this.onEvent({ type: 'BID_SUBMITTED', playerId, bid: player.bid });
+    const bidLabel = player.bid === 0 ? 'NIL (0 tricks)' : `${player.bid} tricks`;
+    this.lastAction = { playerId, bid: player.bid, text: `${player.name} bid ${bidLabel}.` };
+    this.onEvent({ type: 'SPADES_BID_SUBMITTED', playerId, bid: player.bid });
 
-    // When both players have bid, start tricks!
-    if (this.players[0].bid !== null && this.players[1].bid !== null) {
+    // Check if all players have bid
+    const nextUnbid = this.players.findIndex(p => p.bid === null);
+    if (nextUnbid === -1) {
+      // All bids in! Start trick playing
       this.phase = SPADES_PHASES.TRICK_PLAYING;
       this.activePlayerId = 0;
       this.trickLeaderId = 0;
       this.trickNumber = 1;
       this.currentTrick = [];
-      this.spadesBroken = false;
-      this.lastAction = { text: `Bids locked: ${this.players[0].name} (${this.players[0].bid}) vs ${this.players[1].name} (${this.players[1].bid}). Trick 1 starts!` };
-      this.onEvent({ type: 'TRICKS_STARTED' });
+      this.onEvent({ type: 'SPADES_TRICKS_STARTED' });
+    } else {
+      this.activePlayerId = nextUnbid;
     }
 
     this.notifyState();
     return true;
   }
 
-  isSpadeOrTrump(card) {
-    return card.suit === '♠' || card.rank === 'JOKER';
-  }
-
-  isValidCardPlay(playerId, card) {
-    if (this.phase !== SPADES_PHASES.TRICK_PLAYING) return false;
-    if (playerId !== this.activePlayerId) return false;
-
+  isValidTrickPlay(playerId, card) {
     const player = this.players[playerId];
-    const isLead = this.currentTrick.length === 0;
+    if (!player || !card) return false;
 
-    if (isLead) {
-      // Leading a card: cannot lead Spades/Trump unless Spades are broken OR player has only Spades
-      if (this.isSpadeOrTrump(card) && !this.spadesBroken) {
-        const hasNonSpades = player.hand.some(c => !this.isSpadeOrTrump(c));
-        if (hasNonSpades) return false; // Must lead non-spade if available
+    if (this.currentTrick.length === 0) {
+      // Leading trick
+      if (card.suit === '♠' && !this.spadesBroken) {
+        // Can only lead spades if spades broken or only has spades
+        const hasNonSpades = player.hand.some(c => c.suit !== '♠');
+        return !hasNonSpades;
       }
       return true;
     }
 
-    // Following a lead: must follow suit if held
+    // Following trick
     const leadCard = this.currentTrick[0].card;
-    const leadSuit = leadCard.suit;
+    const hasLeadSuit = player.hand.some(c => c.suit === leadCard.suit);
 
-    if (leadSuit === '♠' || leadCard.rank === 'JOKER') {
-      // Lead was a Spade/Trump -> must play Spade/Trump if held
-      const hasTrump = player.hand.some(c => this.isSpadeOrTrump(c));
-      if (hasTrump && !this.isSpadeOrTrump(card)) return false;
-    } else {
-      // Lead was a regular suit (♥, ♦, ♣)
-      const hasLeadSuit = player.hand.some(c => c.suit === leadSuit && c.rank !== 'JOKER');
-      if (hasLeadSuit && card.suit !== leadSuit) return false; // Strict Anti-Reneging Check!
+    if (hasLeadSuit) {
+      return card.suit === leadCard.suit;
     }
 
-    return true;
+    return true; // Out of lead suit, can play trump or slough
   }
 
   playTrickCard(playerId, cardId) {
@@ -192,158 +213,163 @@ class SpadesEngine {
     if (cardIdx === -1) return false;
 
     const card = player.hand[cardIdx];
-    if (!this.isValidCardPlay(playerId, card)) return false;
+    if (!this.isValidTrickPlay(playerId, card)) return false;
 
-    // Remove from hand and add to trick
     player.hand.splice(cardIdx, 1);
     this.currentTrick.push({ playerId, card });
 
-    if (this.isSpadeOrTrump(card)) {
+    if (card.suit === '♠') {
       this.spadesBroken = true;
     }
 
-    this.lastAction = { playerId, action: 'play_trick', card, text: `${player.name} played ${card.label} of ${card.suit}` };
-    this.onEvent({ type: 'TRICK_CARD_PLAYED', playerId, card });
+    this.lastAction = { playerId, card, text: `${player.name} played ${card.label} of ${card.suit}.` };
+    this.onEvent({ type: 'SPADES_CARD_PLAYED', playerId, card });
 
-    if (this.currentTrick.length === 2) {
-      // Both players played: resolve trick winner!
-      this.resolveTrick();
-    } else {
-      this.activePlayerId = 1 - this.activePlayerId;
+    if (this.currentTrick.length === this.numPlayers) {
+      // Trick complete!
+      this.notifyState();
+      setTimeout(() => this.resolveTrick(), 900);
+      return true;
     }
 
+    // Move to next player in trick
+    this.activePlayerId = (this.activePlayerId + 1) % this.numPlayers;
     this.notifyState();
     return true;
   }
 
   resolveTrick() {
-    const [play1, play2] = this.currentTrick;
-    const c1 = play1.card;
-    const c2 = play2.card;
-    let winnerPlayerId = play1.playerId;
+    const leadSuit = this.currentTrick[0].card.suit;
+    let winningPlay = this.currentTrick[0];
 
-    const isTrump1 = this.isSpadeOrTrump(c1);
-    const isTrump2 = this.isSpadeOrTrump(c2);
+    for (let i = 1; i < this.currentTrick.length; i++) {
+      const play = this.currentTrick[i];
+      const winCard = winningPlay.card;
+      const curCard = play.card;
 
-    if (isTrump1 && !isTrump2) {
-      winnerPlayerId = play1.playerId;
-    } else if (!isTrump1 && isTrump2) {
-      winnerPlayerId = play2.playerId;
-    } else if (isTrump1 && isTrump2) {
-      // Both trumps: compare value (Big Joker > Little Joker > A♠ > K♠ ...)
-      winnerPlayerId = (c1.value >= c2.value) ? play1.playerId : play2.playerId;
-    } else {
-      // Neither trump: if second player followed suit and had higher rank, they win; otherwise leader wins
-      if (c2.suit === c1.suit && c2.value > c1.value) {
-        winnerPlayerId = play2.playerId;
-      } else {
-        winnerPlayerId = play1.playerId;
+      if (curCard.suit === '♠' && winCard.suit !== '♠') {
+        winningPlay = play;
+      } else if (curCard.suit === winCard.suit && curCard.value > winCard.value) {
+        winningPlay = play;
       }
     }
 
-    const winner = this.players[winnerPlayerId];
+    const winner = this.players[winningPlay.playerId];
     winner.tricksWon++;
 
     this.lastAction = {
-      text: `🏆 ${winner.name} won Trick ${this.trickNumber}!`
+      playerId: winner.id,
+      card: winningPlay.card,
+      text: `🏆 ${winner.name} won Trick #${this.trickNumber} with ${winningPlay.card.label} of ${winningPlay.card.suit}!`
     };
 
-    this.onEvent({ type: 'TRICK_RESOLVED', winnerId: winnerPlayerId, trickNumber: this.trickNumber });
+    this.onEvent({
+      type: 'SPADES_TRICK_WON',
+      winnerId: winner.id,
+      trickNumber: this.trickNumber,
+      winningCard: winningPlay.card
+    });
 
-    setTimeout(() => {
-      this.currentTrick = [];
-      this.trickNumber++;
+    this.currentTrick = [];
+    this.trickNumber++;
+    this.activePlayerId = winner.id;
+    this.trickLeaderId = winner.id;
 
-      if (this.trickNumber > 13) {
-        this.scoreRound();
-      } else {
-        this.activePlayerId = winnerPlayerId;
-        this.trickLeaderId = winnerPlayerId;
-        this.notifyState();
-      }
-    }, 1800);
-  }
-
-  scoreRound() {
-    this.phase = SPADES_PHASES.GAME_OVER;
-
-    for (const p of this.players) {
-      if (p.tricksWon >= p.bid) {
-        const base = p.bid * 10;
-        const overtricks = p.tricksWon - p.bid;
-        p.score += (base + overtricks);
-        p.bags += overtricks;
-      } else {
-        p.score -= (p.bid * 10);
-      }
-    }
-
-    const p0 = this.players[0];
-    const p1 = this.players[1];
-
-    if (p0.score > p1.score) {
-      this.winner = p0;
-    } else if (p1.score > p0.score) {
-      this.winner = p1;
+    // Check if round over (all hands empty)
+    if (this.players.every(p => p.hand.length === 0)) {
+      this.resolveRoundScore();
     } else {
-      this.winner = null; // Tie
+      this.notifyState();
     }
-
-    this.lastAction = {
-      text: `👑 SPADES MATCH FINISHED! ${this.winner ? this.winner.name + ' WINS!' : 'IT IS A TIE!'}`
-    };
-
-    this.onEvent({ type: 'SPADES_GAME_OVER', winner: this.winner });
-    this.notifyState();
   }
 
-  notifyState() {
-    this.onStateChange(this.getStateSnapshot());
+  resolveRoundScore() {
+    this.phase = SPADES_PHASES.ROUND_OVER;
+
+    if (this.isPartnership && this.numPlayers === 4) {
+      // Partnership calculation
+      const t1Bid = (this.players[0].bid || 0) + (this.players[2].bid || 0);
+      const t1Won = this.players[0].tricksWon + this.players[2].tricksWon;
+      const t2Bid = (this.players[1].bid || 0) + (this.players[3].bid || 0);
+      const t2Won = this.players[1].tricksWon + this.players[3].tricksWon;
+
+      let t1ScoreDelta = 0;
+      if (t1Won >= t1Bid) {
+        const bags = t1Won - t1Bid;
+        t1ScoreDelta += (t1Bid * 10) + bags;
+        this.teamScores.bags1 += bags;
+      } else {
+        t1ScoreDelta -= (t1Bid * 10);
+      }
+
+      let t2ScoreDelta = 0;
+      if (t2Won >= t2Bid) {
+        const bags = t2Won - t2Bid;
+        t2ScoreDelta += (t2Bid * 10) + bags;
+        this.teamScores.bags2 += bags;
+      } else {
+        t2ScoreDelta -= (t2Bid * 10);
+      }
+
+      this.teamScores.team1 += t1ScoreDelta;
+      this.teamScores.team2 += t2ScoreDelta;
+
+      this.winner = this.teamScores.team1 >= this.teamScores.team2
+        ? { id: 0, name: `Team South/North (${this.players[0].name} & ${this.players[2].name})` }
+        : { id: 1, name: `Team West/East (${this.players[1].name} & ${this.players[3].name})` };
+    } else {
+      // Individual scoring
+      for (const p of this.players) {
+        const bid = p.bid || 0;
+        if (p.tricksWon >= bid) {
+          const bags = p.tricksWon - bid;
+          p.score += (bid * 10) + bags;
+          p.bags += bags;
+        } else {
+          p.score -= (bid * 10);
+        }
+      }
+
+      const sorted = [...this.players].sort((a, b) => b.score - a.score);
+      this.winner = sorted[0];
+    }
+
+    this.lastAction = { text: `Round completed! Champion: ${this.winner.name}` };
+    this.onEvent({ type: 'SPADES_ROUND_COMPLETED', winner: this.winner });
+    this.notifyState();
   }
 
   getStateSnapshot() {
     return {
       phase: this.phase,
-      activeTurnPlayer: this.activePlayerId,
       activePlayerId: this.activePlayerId,
-      draftingPlayer: this.draftingPlayer,
-      draftTurnCount: this.draftTurnCount,
-      currentDraftCard: this.currentDraftCard,
-      spadesBroken: this.spadesBroken,
-      currentTrick: this.currentTrick,
+      trickLeaderId: this.trickLeaderId,
       trickNumber: this.trickNumber,
+      spadesBroken: this.spadesBroken,
+      currentDraftCard: this.currentDraftCard,
+      currentTrick: this.currentTrick,
       winner: this.winner,
       lastAction: this.lastAction,
+      isPartnership: this.isPartnership,
+      teamScores: this.teamScores,
       players: this.players.map(p => ({
         id: p.id,
         name: p.name,
+        avatar: p.avatar,
+        isAi: p.isAi,
+        team: p.team,
+        cardCount: p.hand.length,
         hand: p.hand,
-        handCount: p.hand.length,
         bid: p.bid,
         tricksWon: p.tricksWon,
         score: p.score,
-        totalScore: p.score,
         bags: p.bags
       }))
     };
   }
 
-  getSanitizedStateForPlayer(playerId) {
-    const raw = this.getStateSnapshot();
-    const sanitizedPlayers = raw.players.map((p, idx) => {
-      if (idx === playerId || raw.phase === SPADES_PHASES.GAME_OVER) {
-        return p;
-      }
-      return {
-        ...p,
-        hand: p.hand.map(() => null)
-      };
-    });
-
-    return {
-      ...raw,
-      players: sanitizedPlayers
-    };
+  notifyState() {
+    this.onStateChange(this.getStateSnapshot());
   }
 }
 
