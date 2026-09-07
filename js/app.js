@@ -297,9 +297,20 @@ class FamilyCardArcadeApp {
       });
     });
 
+    // Global user interaction listener to resume audio contexts and remote audio elements
+    const resumeAudioOnInteract = () => {
+      if (this.media && this.media.resumeAllAudio) {
+        this.media.resumeAllAudio();
+      }
+    };
+    document.addEventListener('click', resumeAudioOnInteract, { passive: true });
+    document.addEventListener('touchstart', resumeAudioOnInteract, { passive: true });
+
     // Menu / Game Selection
     if (this.btnMainMenu) {
       this.btnMainMenu.addEventListener('click', () => {
+        sessionStorage.removeItem('card_arcadia_room_session');
+        window.history.replaceState({}, '', window.location.pathname);
         if (typeof SoundFX !== 'undefined') SoundFX.play('button');
         this.openModal('modal-welcome');
       });
@@ -543,10 +554,31 @@ class FamilyCardArcadeApp {
 
   checkUrlParams() {
     const params = new URLSearchParams(window.location.search);
-    const room = params.get('room');
-    if (room) {
+    const roomParam = params.get('room');
+    
+    // Check saved session in sessionStorage for auto-reconnect on refresh
+    let savedSession = null;
+    try {
+      const raw = sessionStorage.getItem('card_arcadia_room_session');
+      if (raw) savedSession = JSON.parse(raw);
+    } catch (e) {}
+
+    if (savedSession && savedSession.roomId) {
+      console.log('[App] Restoring previous room session:', savedSession);
+      if (savedSession.isHost) {
+        this.openHostRoomModal(savedSession.roomId);
+      } else {
+        this.joinOnlineRoom(savedSession.roomId, savedSession.role === 'spectator', savedSession.seatIndex);
+      }
+      return;
+    }
+
+    if (roomParam) {
+      const cleanCode = roomParam.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
       this.openModal('modal-online-room');
-      if (this.inputJoinCode) this.inputJoinCode.value = room.toUpperCase();
+      if (this.inputJoinCode) this.inputJoinCode.value = cleanCode;
+      // Auto join if coming from a direct link
+      this.joinOnlineRoom(cleanCode, false);
     }
   }
 
@@ -598,7 +630,7 @@ class FamilyCardArcadeApp {
     }
   }
 
-  async openHostRoomModal() {
+  async openHostRoomModal(customCode = null) {
     this.mode = 'ONLINE';
     this.isHost = true;
     this.isSpectator = false;
@@ -609,11 +641,20 @@ class FamilyCardArcadeApp {
       this.openModal('modal-online-room');
       if (this.roomStatusMessage) this.roomStatusMessage.textContent = '⏳ Creating room code...';
 
-      const code = await this.network.createRoom(null, 'Player 1 (Host)');
+      const code = await this.network.createRoom(customCode, 'Player 1 (Host)');
       if (this.displayRoomCode) this.displayRoomCode.textContent = code;
       this.updateRoomBadge(code);
       if (this.btnShareRoom) this.btnShareRoom.style.display = 'flex';
       if (this.roomStatusMessage) this.roomStatusMessage.textContent = '⏳ Waiting for other player(s) to join...';
+
+      // Persist session & update URL
+      sessionStorage.setItem('card_arcadia_room_session', JSON.stringify({
+        roomId: code,
+        isHost: true,
+        role: 'player',
+        seatIndex: 0
+      }));
+      window.history.replaceState({}, '', `?room=${code}`);
 
       this.media.attachPeer(this.network.peer, 0, false);
       this.promptMediaAccess();
@@ -624,20 +665,30 @@ class FamilyCardArcadeApp {
     }
   }
 
-  async joinOnlineRoom(code, asSpectator = false) {
+  async joinOnlineRoom(code, asSpectator = false, preferredSeat = null) {
     this.mode = 'ONLINE';
     this.isHost = false;
     this.isSpectator = asSpectator;
 
     try {
       if (this.roomStatusMessage) this.roomStatusMessage.textContent = asSpectator ? 'Joining as spectator...' : 'Connecting to host...';
-      const roomId = await this.network.joinRoom(code, asSpectator ? 'Spectator' : 'Player 2', asSpectator);
+      const roomId = await this.network.joinRoom(code, asSpectator ? 'Spectator' : 'Player 2', asSpectator, preferredSeat);
       
       this.closeModal('modal-online-room');
       this.updateRoomBadge(roomId);
       if (this.spectatorBadge) this.spectatorBadge.style.display = asSpectator ? 'flex' : 'none';
 
       this.localPlayerId = this.network.mySeatIndex !== null ? this.network.mySeatIndex : 1;
+      
+      // Persist session & update URL
+      sessionStorage.setItem('card_arcadia_room_session', JSON.stringify({
+        roomId: roomId,
+        isHost: false,
+        role: asSpectator ? 'spectator' : 'player',
+        seatIndex: this.localPlayerId
+      }));
+      window.history.replaceState({}, '', `?room=${roomId}`);
+
       this.media.attachPeer(this.network.peer, this.localPlayerId, asSpectator);
       this.promptMediaAccess();
       this.showToast(`Connected to room ${roomId}!`);
