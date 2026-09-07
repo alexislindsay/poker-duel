@@ -1293,18 +1293,25 @@ html, body {
 /* AV Video Elements & Avatar Wrapper */
 .player-avatar-wrapper {
   position: relative;
-  width: 36px;
-  height: 36px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   background: linear-gradient(135deg, #3b82f6, #1e40af);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  font-size: 1.25rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
   overflow: hidden;
   flex-shrink: 0;
-  transition: all 0.2s ease;
+  transition: all 0.25s ease;
+}
+
+.avatar-video-active {
+  width: 58px;
+  height: 58px;
+  border: 2px solid #3b82f6;
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.7);
 }
 
 .pod-video-element {
@@ -1316,7 +1323,7 @@ html, body {
   object-fit: cover;
   border-radius: 50%;
   display: none;
-  background: #0f172a;
+  background: transparent;
 }
 
 .avatar-video-active .pod-video-element {

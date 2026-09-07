@@ -387,6 +387,19 @@ class FamilyCardArcadeApp {
     if (this.btnHostStartGame) {
       this.btnHostStartGame.addEventListener('click', () => {
         this.closeModal('modal-online-room');
+
+        // Configure multiplayer human players across engines
+        const roster = this.network ? this.network.getRoster() : [];
+        if (this.pokerEngine && this.pokerEngine.configureMultiplayerPlayers) {
+          this.pokerEngine.configureMultiplayerPlayers(roster);
+        }
+        if (this.crazy8Engine && this.crazy8Engine.configureMultiplayerPlayers) {
+          this.crazy8Engine.configureMultiplayerPlayers(roster);
+        }
+        if (this.spadesEngine && this.spadesEngine.configureMultiplayerPlayers) {
+          this.spadesEngine.configureMultiplayerPlayers(roster);
+        }
+
         this.startActiveGame();
         if (this.network && this.isHost) {
           this.network.broadcast({

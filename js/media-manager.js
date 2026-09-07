@@ -86,7 +86,31 @@ class MediaManager {
       // Render local video preview in local seat pod
       this.attachStreamToSeat(this.mySeatIndex, this.localStream, true);
 
-      // Call all already connected peers with our local stream
+      // Renegotiate active calls with real audio/video tracks
+      if (this.calls.size > 0 && this.localStream) {
+        const videoTrack = this.localStream.getVideoTracks()[0];
+        const audioTrack = this.localStream.getAudioTracks()[0];
+
+        this.calls.forEach((call, peerId) => {
+          if (call && call.peerConnection) {
+            try {
+              const senders = call.peerConnection.getSenders();
+              senders.forEach(sender => {
+                if (sender.track && sender.track.kind === 'video' && videoTrack) {
+                  sender.replaceTrack(videoTrack).catch(e => console.warn('[AV] replaceTrack video notice:', e));
+                }
+                if (sender.track && sender.track.kind === 'audio' && audioTrack) {
+                  sender.replaceTrack(audioTrack).catch(e => console.warn('[AV] replaceTrack audio notice:', e));
+                }
+              });
+            } catch (e) {
+              console.warn('[AV] Track replacement notice:', e);
+            }
+          }
+        });
+      }
+
+      // Call any uncalled connected peers
       this.callAllConnectedPeers();
 
       this.onMediaStateChange({
@@ -235,20 +259,33 @@ class MediaManager {
       const isSelf = (seatIndex === this.mySeatIndex) || (domSeat === 0);
       videoEl.muted = isSelf ? true : isMuted; // Strictly mute self to prevent echo/feedback, unmute remote players
       videoEl.volume = isSelf ? 0 : 1.0;
-      videoEl.play().catch(e => console.warn(`[AV] Autoplay blocked for seat ${seatIndex} (DOM ${domSeat}):`, e));
 
-      // Check if there are active, enabled live video tracks
-      const hasLiveVideo = stream && stream.getVideoTracks && stream.getVideoTracks().some(t => t.readyState === 'live' && t.enabled);
+      const updateVideoDisplay = () => {
+        const hasLiveVideo = stream && stream.getVideoTracks && stream.getVideoTracks().some(t => t.readyState === 'live' && t.enabled);
+        if (hasLiveVideo) {
+          videoEl.style.display = 'block';
+          if (podEl) podEl.classList.add('has-video');
+          if (avatarEl) avatarEl.classList.add('avatar-video-active');
+        } else {
+          videoEl.style.display = 'none';
+          if (podEl) podEl.classList.remove('has-video');
+          if (avatarEl) avatarEl.classList.remove('avatar-video-active');
+        }
+      };
 
-      if (hasLiveVideo) {
-        videoEl.style.display = 'block';
-        if (podEl) podEl.classList.add('has-video');
-        if (avatarEl) avatarEl.classList.add('avatar-video-active');
-      } else {
-        videoEl.style.display = 'none';
-        if (podEl) podEl.classList.remove('has-video');
-        if (avatarEl) avatarEl.classList.remove('avatar-video-active');
+      videoEl.onloadedmetadata = () => {
+        updateVideoDisplay();
+        videoEl.play().catch(e => console.warn(`[AV] Autoplay blocked for seat ${seatIndex}:`, e));
+      };
+      videoEl.onplaying = updateVideoDisplay;
+
+      if (stream) {
+        if (stream.onaddtrack !== undefined) stream.onaddtrack = updateVideoDisplay;
+        if (stream.onremovetrack !== undefined) stream.onremovetrack = updateVideoDisplay;
       }
+
+      updateVideoDisplay();
+      videoEl.play().catch(e => console.warn(`[AV] Autoplay blocked for seat ${seatIndex} (DOM ${domSeat}):`, e));
     } catch (e) {
       console.error(`[AV] Failed to attach stream to seat ${seatIndex} (DOM ${domSeat}):`, e);
     }
