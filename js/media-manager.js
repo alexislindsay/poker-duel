@@ -232,7 +232,9 @@ class MediaManager {
 
     try {
       videoEl.srcObject = stream;
-      videoEl.muted = isMuted; // Mute self, unmute others
+      const isSelf = (seatIndex === this.mySeatIndex) || (domSeat === 0);
+      videoEl.muted = isSelf ? true : isMuted; // Strictly mute self to prevent echo/feedback, unmute remote players
+      videoEl.volume = isSelf ? 0 : 1.0;
       videoEl.play().catch(e => console.warn(`[AV] Autoplay blocked for seat ${seatIndex} (DOM ${domSeat}):`, e));
 
       // Check if there are active, enabled live video tracks
