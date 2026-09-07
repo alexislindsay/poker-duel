@@ -82,6 +82,30 @@ class GameEngine {
     this.winReason = '';
   }
 
+  configureMultiplayerPlayers(roster = []) {
+    const defaultMultiplayerNames = ['Player 1 (Host)', 'Player 2', 'Player 3', 'Player 4'];
+    const defaultMultiplayerAvatars = ['🤠', '👩‍💼', '🧑‍💻', '😎'];
+
+    const activePlayers = (roster || []).filter(r => r.role === 'player' && r.seatIndex !== null);
+    if (activePlayers.length > this.numPlayers) {
+      this.setPlayerCount(activePlayers.length);
+    }
+
+    this.players.forEach((p, idx) => {
+      const match = activePlayers.find(r => r.seatIndex === idx);
+      if (match) {
+        p.name = match.name || defaultMultiplayerNames[idx];
+        p.avatar = defaultMultiplayerAvatars[idx];
+        p.isAi = false;
+      } else {
+        if (!p.isAi) {
+          p.name = defaultMultiplayerNames[idx];
+          p.avatar = defaultMultiplayerAvatars[idx];
+        }
+      }
+    });
+  }
+
   get currentBlindLevel() {
     return BLIND_LEVELS[Math.min(this.blindLevelIndex, BLIND_LEVELS.length - 1)];
   }
