@@ -70,7 +70,19 @@ class NetworkManager {
           return reject(new Error('PeerJS library is not loaded.'));
         }
 
-        this.disconnect();
+        if (this.peer && !this.peer.destroyed) {
+          try { this.peer.destroy(); } catch (e) {}
+          this.peer = null;
+        }
+
+        let isResolved = false;
+        const timer = setTimeout(() => {
+          if (!isResolved) {
+            console.warn('[P2P] Room creation timed out on initial ID, retrying with fresh ID...');
+            const freshCode = NetworkManager.generateRoomCode();
+            this.createRoom(freshCode, hostName).then(resolve).catch(reject);
+          }
+        }, 8000);
 
         this.peer = new Peer(peerId, {
           debug: 1,
@@ -78,6 +90,8 @@ class NetworkManager {
         });
 
         this.peer.on('open', (id) => {
+          isResolved = true;
+          clearTimeout(timer);
           this.localPeerId = id;
           console.log(`[P2P] Multi-peer room created: ${this.roomId} (Host ID: ${id})`);
           
@@ -100,9 +114,11 @@ class NetworkManager {
           console.error('[P2P] Host peer error:', err);
           this.onError(err);
           if (err.type === 'unavailable-id') {
+            clearTimeout(timer);
             const newCode = NetworkManager.generateRoomCode();
             this.createRoom(newCode, hostName).then(resolve).catch(reject);
-          } else {
+          } else if (!isResolved) {
+            clearTimeout(timer);
             reject(err);
           }
         });

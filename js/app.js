@@ -551,19 +551,21 @@ class FamilyCardArcadeApp {
     try {
       this.closeModal('modal-welcome');
       this.openModal('modal-online-room');
-      if (this.roomStatusMessage) this.roomStatusMessage.textContent = 'Creating room...';
+      if (this.roomStatusMessage) this.roomStatusMessage.textContent = '⏳ Creating room code...';
 
-      const code = await this.network.createRoom(null, 'You (Host)');
+      const code = await this.network.createRoom(null, 'Player 1 (Host)');
       if (this.displayRoomCode) this.displayRoomCode.textContent = code;
       if (this.roomBadge) this.roomBadge.style.display = 'flex';
       if (this.roomBadgeText) this.roomBadgeText.innerHTML = `Room: <strong>${code}</strong>`;
       if (this.btnShareRoom) this.btnShareRoom.style.display = 'flex';
+      if (this.roomStatusMessage) this.roomStatusMessage.textContent = '⏳ Waiting for other player(s) to join...';
 
       this.media.attachPeer(this.network.peer, 0, false);
       this.promptMediaAccess();
-      this.startActiveGame();
     } catch (err) {
-      this.showToast(`Error creating room: ${err.message}`);
+      console.error('[Host Room Error]', err);
+      if (this.roomStatusMessage) this.roomStatusMessage.textContent = '⚠️ Could not reach signaling server. Please retry.';
+      this.showToast(`Error creating room: ${err.message || 'Check connection'}`);
     }
   }
 
@@ -573,27 +575,27 @@ class FamilyCardArcadeApp {
     this.isSpectator = asSpectator;
 
     try {
-      if (this.roomStatusMessage) this.roomStatusMessage.textContent = asSpectator ? 'Joining as spectator...' : 'Joining room...';
-      const roomId = await this.network.joinRoom(code, asSpectator ? 'Spectator' : 'Player', asSpectator);
+      if (this.roomStatusMessage) this.roomStatusMessage.textContent = asSpectator ? 'Joining as spectator...' : 'Connecting to host...';
+      const roomId = await this.network.joinRoom(code, asSpectator ? 'Spectator' : 'Player 2', asSpectator);
       
       this.closeModal('modal-online-room');
       if (this.roomBadge) this.roomBadge.style.display = 'flex';
       if (this.roomBadgeText) this.roomBadgeText.innerHTML = `Room: <strong>${roomId}</strong>`;
       if (this.spectatorBadge) this.spectatorBadge.style.display = asSpectator ? 'flex' : 'none';
 
-      this.localPlayerId = this.network.mySeatIndex || 0;
+      this.localPlayerId = this.network.mySeatIndex !== null ? this.network.mySeatIndex : 1;
       this.media.attachPeer(this.network.peer, this.localPlayerId, asSpectator);
       this.promptMediaAccess();
       this.showToast(`Connected to room ${roomId}!`);
     } catch (err) {
-      this.showToast(`Failed to join room: ${err.message}`);
+      console.error('[Join Room Error]', err);
+      this.showToast(`Failed to join room: ${err.message || 'Room not found'}`);
     }
   }
 
   onNetworkConnected(info) {
     console.log('[App] Network connected:', info);
     if (this.network.peer) {
-      // Connect media calls with existing peers
       const roster = info.roster || [];
       roster.forEach(p => {
         if (p.peerId !== this.network.localPeerId) {
@@ -616,8 +618,9 @@ class FamilyCardArcadeApp {
   }
 
   onRosterChange(roster) {
+    const list = roster || [];
     if (this.roomRosterList) {
-      this.roomRosterList.innerHTML = roster.map(p => `
+      this.roomRosterList.innerHTML = list.map(p => `
         <div class="roster-player-item">
           <span>${p.name}</span>
           <span class="roster-badge ${p.role === 'spectator' ? 'badge-spectator' : 'badge-seat'}">
@@ -627,10 +630,20 @@ class FamilyCardArcadeApp {
       `).join('');
     }
 
-    // Dynamic table seat count expansion based on connected players
-    const activeSeats = roster.filter(p => p.role === 'player' && p.seatIndex !== null).length;
-    if (activeSeats > this.seatCount) {
-      this.setSeatCount(activeSeats);
+    list.forEach(p => {
+      if (p.peerId && p.seatIndex !== undefined && p.seatIndex !== null) {
+        this.media.setPeerSeat(p.peerId, p.seatIndex);
+      }
+    });
+
+    const activeSeats = list.filter(p => p.role === 'player' && p.seatIndex !== null).length;
+    if (activeSeats >= 2) {
+      if (activeSeats > this.seatCount) {
+        this.setSeatCount(activeSeats);
+      }
+      if (this.roomStatusMessage) {
+        this.roomStatusMessage.textContent = `✅ Ready (${activeSeats} players connected)`;
+      }
     }
   }
 
