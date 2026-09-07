@@ -1,4 +1,4 @@
-// js/games/crazy-eights-engine.js - 2-Player Crazy Eights Engine with Food Suits & Wild 8s
+// js/games/crazy-eights-engine.js - 2 to 4 Player Crazy Eights Engine with Food Suits & Wild 8s
 
 const CRAZY_EIGHTS_PHASES = {
   NOT_STARTED: 'NOT_STARTED',
@@ -11,12 +11,10 @@ class CrazyEightsEngine {
   constructor(options = {}) {
     this.onStateChange = options.onStateChange || (() => {});
     this.onEvent = options.onEvent || (() => {});
+    this.numPlayers = options.numPlayers || 2;
+    this.customPlayerConfigs = options.playersConfig || null;
 
-    this.players = [
-      { id: 0, name: 'You', hand: [] },
-      { id: 1, name: 'Dad', hand: [] }
-    ];
-
+    this.initPlayers();
     this.deck = new Deck();
     this.discardPile = [];
     this.phase = CRAZY_EIGHTS_PHASES.NOT_STARTED;
@@ -24,6 +22,30 @@ class CrazyEightsEngine {
     this.declaredSuit = null;
     this.winner = null;
     this.lastAction = null;
+  }
+
+  setPlayerCount(count, playerConfigs = null) {
+    this.numPlayers = Math.max(2, Math.min(4, count));
+    this.customPlayerConfigs = playerConfigs;
+    this.initPlayers();
+    this.startNewGame();
+  }
+
+  initPlayers() {
+    const defaultNames = ['You', 'Dad', 'Mom', 'Bro'];
+    const defaultAvatars = ['🤠', '🤖', '👩‍💼', '😎'];
+
+    this.players = [];
+    for (let i = 0; i < this.numPlayers; i++) {
+      const cfg = (this.customPlayerConfigs && this.customPlayerConfigs[i]) || {};
+      this.players.push({
+        id: i,
+        name: cfg.name || defaultNames[i] || `Player ${i + 1}`,
+        avatar: cfg.avatar || defaultAvatars[i] || '👤',
+        isAi: cfg.isAi !== undefined ? cfg.isAi : (i > 0),
+        hand: []
+      });
+    }
   }
 
   startNewGame() {
@@ -38,10 +60,12 @@ class CrazyEightsEngine {
       p.hand = [];
     }
 
-    // Deal 7 cards each
-    for (let i = 0; i < 7; i++) {
-      this.players[0].hand.push(this.deck.draw());
-      this.players[1].hand.push(this.deck.draw());
+    // Deal 7 cards each for 2 players, or 5 cards each for 3-4 players
+    const cardsPerPlayer = this.numPlayers === 2 ? 7 : 5;
+    for (let i = 0; i < cardsPerPlayer; i++) {
+      for (const p of this.players) {
+        p.hand.push(this.deck.draw());
+      }
     }
 
     // Flip starter card (cannot be an 8 for fair opening)
@@ -69,7 +93,7 @@ class CrazyEightsEngine {
 
   isValidPlay(card, topCard = null, activeSuit = null) {
     if (!card) return false;
-    if (card.rank === '8') return true; // 8s are ALWAYS wild!
+    if (card.rank === '8') return true; // 8s are always wild
 
     const top = topCard || this.getTopCard();
     if (!top) return true;
@@ -96,85 +120,74 @@ class CrazyEightsEngine {
     if (card.rank === '8') {
       if (declaredWildSuit) {
         this.declaredSuit = declaredWildSuit;
-        const food = SUIT_FOOD_MAP[declaredWildSuit] || { emoji: declaredWildSuit, name: declaredWildSuit };
+        const food = (typeof SUIT_FOOD_MAP !== 'undefined' && SUIT_FOOD_MAP[declaredWildSuit]) || { emoji: declaredWildSuit, name: declaredWildSuit };
         this.lastAction = {
           playerId,
-          action: 'play_wild_8',
           card,
-          text: `★ ${player.name} played a WILD 8 and changed suit to ${food.emoji} ${food.name}!`
+          text: `${player.name} played a Wild 8 and declared ${food.name} (${declaredWildSuit})!`
         };
-        this.onEvent({ type: 'SUIT_CHANGED', suit: declaredWildSuit, player: player.name });
+        this.onEvent({ type: 'CRAZY_EIGHTS_CARD_PLAYED', playerId, card, declaredSuit: declaredWildSuit });
 
+        // Check if hand is empty
         if (player.hand.length === 0) {
-          this.finishGame(player);
+          this.endGame(player);
           return true;
         }
 
         // Pass turn
-        this.activePlayerId = 1 - this.activePlayerId;
-        this.notifyState();
+        this.advanceTurn();
         return true;
       } else {
-        // Need to choose suit via modal
+        // Need to ask player to choose suit
         this.phase = CRAZY_EIGHTS_PHASES.CHOOSE_SUIT;
-        this.lastAction = {
-          playerId,
-          action: 'play_wild_8',
-          card,
-          text: `★ ${player.name} played a WILD 8! Choosing new suit...`
-        };
-        this.onEvent({ type: 'WILD_8_PLAYED', playerId, card });
+        this.onEvent({ type: 'CRAZY_EIGHTS_CHOOSE_SUIT', playerId });
         this.notifyState();
         return true;
       }
-    } else {
-      this.declaredSuit = card.suit;
-      this.lastAction = {
-        playerId,
-        action: 'play_card',
-        card,
-        text: `${player.name} played ${card.label}${card.suit}`
-      };
-      this.onEvent({ type: 'CARD_PLAYED', playerId, card });
+    }
 
-      if (player.hand.length === 0) {
-        this.finishGame(player);
-        return true;
-      }
+    // Normal non-8 card
+    this.declaredSuit = card.suit;
+    this.lastAction = {
+      playerId,
+      card,
+      text: `${player.name} played ${card.label} of ${card.suit}.`
+    };
 
-      // Pass turn to opponent
-      this.activePlayerId = 1 - this.activePlayerId;
-      this.notifyState();
+    this.onEvent({ type: 'CRAZY_EIGHTS_CARD_PLAYED', playerId, card });
+
+    // Check win
+    if (player.hand.length === 0) {
+      this.endGame(player);
       return true;
     }
+
+    this.advanceTurn();
+    return true;
   }
 
-  chooseWildSuit(playerId, suit) {
+  setWildSuit(playerId, suit) {
     if (this.phase !== CRAZY_EIGHTS_PHASES.CHOOSE_SUIT) return false;
     if (playerId !== this.activePlayerId) return false;
 
-    this.declaredSuit = suit;
     const player = this.players[playerId];
-    const food = SUIT_FOOD_MAP[suit] || { name: suit, emoji: suit };
+    this.declaredSuit = suit;
+    this.phase = CRAZY_EIGHTS_PHASES.PLAY;
 
+    const food = (typeof SUIT_FOOD_MAP !== 'undefined' && SUIT_FOOD_MAP[suit]) || { emoji: suit, name: suit };
     this.lastAction = {
       playerId,
-      action: 'suit_chosen',
-      suit,
-      text: `${player.name} declared new suit: ${food.emoji} ${food.name}!`
+      text: `${player.name} declared suit ${food.name} (${suit})!`
     };
 
-    this.onEvent({ type: 'SUIT_CHANGED', playerId, suit, foodName: food.name });
+    this.onEvent({ type: 'CRAZY_EIGHTS_SUIT_DECLARED', playerId, suit });
 
     if (player.hand.length === 0) {
-      this.finishGame(player);
+      this.endGame(player);
       return true;
     }
 
-    // Resume play and pass turn
-    this.phase = CRAZY_EIGHTS_PHASES.PLAY;
-    this.activePlayerId = 1 - this.activePlayerId;
-    this.notifyState();
+    this.advanceTurn();
     return true;
   }
 
@@ -183,165 +196,80 @@ class CrazyEightsEngine {
     if (playerId !== this.activePlayerId) return false;
 
     const player = this.players[playerId];
-    let card = this.deck.draw();
 
-    if (!card) {
-      // Stockpile empty: reshuffle discards (except top card)
-      if (this.discardPile.length > 1) {
-        const top = this.discardPile.pop();
-        this.deck.cards = [...this.discardPile];
-        this.deck.shuffle();
-        this.discardPile = [top];
-        card = this.deck.draw();
+    // If deck is empty, reshuffle discard pile (except top card)
+    if (this.deck.remaining() === 0) {
+      if (this.discardPile.length <= 1) {
+        // No cards left to draw, skip turn
+        this.lastAction = { playerId, text: `Stockpile is empty! ${player.name} passes.` };
+        this.advanceTurn();
+        return false;
       }
+
+      const top = this.discardPile.pop();
+      this.deck.cards = [...this.discardPile];
+      this.deck.shuffle();
+      this.discardPile = [top];
+      this.onEvent({ type: 'CRAZY_EIGHTS_DECK_RESHUFFLED' });
     }
 
-    if (card) {
-      player.hand.push(card);
-      this.lastAction = {
-        playerId,
-        action: 'draw',
-        text: `${player.name} drew a card from the stockpile.`
-      };
-      this.onEvent({ type: 'CARD_DRAWN', playerId });
-    } else {
-      // Stockpile completely empty and no cards to reshuffle: pass turn
-      this.lastAction = {
-        playerId,
-        action: 'pass',
-        text: `Stockpile empty! ${player.name} passed.`
-      };
-      this.activePlayerId = 1 - this.activePlayerId;
+    const card = this.deck.draw();
+    if (!card) {
+      this.advanceTurn();
+      return false;
     }
 
-    this.notifyState();
+    player.hand.push(card);
+    this.lastAction = { playerId, card, text: `${player.name} drew a card from the stockpile.` };
+    this.onEvent({ type: 'CRAZY_EIGHTS_CARD_DRAWN', playerId, card });
+
+    // Check if the drawn card can be played immediately
+    if (this.isValidPlay(card)) {
+      this.notifyState();
+      return true;
+    }
+
+    // If not playable, pass turn
+    this.advanceTurn();
     return true;
   }
 
-  drawFromStock(playerId) {
-    return this.drawCard(playerId);
-  }
-
-  // AI turn automation for DadBot
-  aiPlayTurn(aiPlayerId = 1) {
-    if (this.phase !== CRAZY_EIGHTS_PHASES.PLAY) return;
-    if (this.activePlayerId !== aiPlayerId) return;
-
-    const player = this.players[aiPlayerId];
-    if (!player || !player.hand || player.hand.length === 0) return;
-
-    const top = this.getTopCard();
-    const activeSuit = this.declaredSuit || (top ? top.suit : '♠');
-
-    // 1. Find all playable regular cards
-    const playableRegular = player.hand.filter(c => c && c.rank !== '8' && this.isValidPlay(c, top, activeSuit));
-
-    if (playableRegular.length > 0) {
-      // Play regular matching card (prefer suit with most count in hand)
-      const suitCounts = {};
-      player.hand.forEach(c => { if (c) suitCounts[c.suit] = (suitCounts[c.suit] || 0) + 1; });
-      playableRegular.sort((a, b) => (suitCounts[b.suit] || 0) - (suitCounts[a.suit] || 0));
-      
-      const chosen = playableRegular[0];
-      this.playCard(aiPlayerId, chosen.id);
-      return;
-    }
-
-    // 2. If no regular plays, check if Dad holds a Wild 8
-    const wild8 = player.hand.find(c => c && c.rank === '8');
-    if (wild8) {
-      // Pick suit Dad holds the most of
-      const suitCounts = { '♠': 0, '♥': 0, '♦': 0, '♣': 0 };
-      player.hand.forEach(c => {
-        if (c && c.rank !== '8' && suitCounts[c.suit] !== undefined) {
-          suitCounts[c.suit]++;
-        }
-      });
-      let bestSuit = '♠';
-      let maxCount = -1;
-      for (const s of ['♠', '♥', '♦', '♣']) {
-        if (suitCounts[s] > maxCount) {
-          maxCount = suitCounts[s];
-          bestSuit = s;
-        }
-      }
-
-      this.playCard(aiPlayerId, wild8.id, bestSuit);
-      return;
-    }
-
-    // 3. Must draw from stockpile
-    this.drawCard(aiPlayerId);
-
-    // If newly drawn card is immediately playable, play it after short delay
-    const drawn = player.hand[player.hand.length - 1];
-    if (drawn && this.isValidPlay(drawn, top, activeSuit)) {
-      setTimeout(() => {
-        if (drawn.rank === '8') {
-          this.playCard(aiPlayerId, drawn.id, activeSuit);
-        } else {
-          this.playCard(aiPlayerId, drawn.id);
-        }
-      }, 500);
-    }
-  }
-
-  finishGame(winnerPlayer) {
-    this.phase = CRAZY_EIGHTS_PHASES.GAME_OVER;
-    this.winner = winnerPlayer;
-    this.lastAction = {
-      text: `👑 ${winnerPlayer.name.toUpperCase()} EMPTIED THEIR HAND AND WON CRAZY EIGHTS!`
-    };
-    this.onEvent({ type: 'CRAZY_EIGHTS_GAME_OVER', winner: winnerPlayer });
+  advanceTurn() {
+    this.activePlayerId = (this.activePlayerId + 1) % this.players.length;
     this.notifyState();
   }
 
-  notifyState() {
-    this.onStateChange(this.getStateSnapshot());
+  endGame(winner) {
+    this.phase = CRAZY_EIGHTS_PHASES.GAME_OVER;
+    this.winner = winner;
+    this.lastAction = { text: `👑 ${winner.name} emptied their hand and WON the game!` };
+    this.onEvent({ type: 'CRAZY_EIGHTS_WON', winnerId: winner.id, winnerName: winner.name });
+    this.notifyState();
   }
 
   getStateSnapshot() {
-    const top = this.getTopCard();
-    const actSuit = this.declaredSuit || (top ? top.suit : '♠');
-
     return {
       phase: this.phase,
-      activeTurnPlayer: this.activePlayerId,
       activePlayerId: this.activePlayerId,
-      topCard: top,
-      topDiscard: top,
-      currentSuit: actSuit,
-      declaredSuit: actSuit,
-      stockPile: this.deck.cards,
-      stockpileCount: this.deck.remaining(),
-      discardPile: this.discardPile,
+      declaredSuit: this.declaredSuit,
+      topCard: this.getTopCard(),
+      deckCount: this.deck.remaining(),
+      discardCount: this.discardPile.length,
+      winner: this.winner ? { id: this.winner.id, name: this.winner.name } : null,
       lastAction: this.lastAction,
-      winner: this.winner,
       players: this.players.map(p => ({
         id: p.id,
         name: p.name,
-        hand: p.hand,
-        handCount: p.hand.length
+        avatar: p.avatar,
+        isAi: p.isAi,
+        cardCount: p.hand.length,
+        hand: p.hand
       }))
     };
   }
 
-  getSanitizedStateForPlayer(playerId) {
-    const raw = this.getStateSnapshot();
-    const sanitizedPlayers = raw.players.map((p, idx) => {
-      if (idx === playerId || raw.phase === CRAZY_EIGHTS_PHASES.GAME_OVER) {
-        return p;
-      }
-      return {
-        ...p,
-        hand: p.hand.map(() => null)
-      };
-    });
-
-    return {
-      ...raw,
-      players: sanitizedPlayers
-    };
+  notifyState() {
+    this.onStateChange(this.getStateSnapshot());
   }
 }
 

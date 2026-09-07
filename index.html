@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Card Arcade - Online & Solo Card Games</title>
+  <title>Card Arcade - Online & Solo Card Games with Video & Voice</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🃏</text></svg>">
   <link rel="stylesheet" href="css/styles.css">
-  <!-- PeerJS bundled locally for 100% reliable zero-server P2P multiplayer -->
+  <!-- PeerJS bundled locally for 100% reliable zero-server P2P multiplayer & WebRTC AV calls -->
   <script src="js/peerjs.min.js"></script>
   <!-- Canvas Confetti for winning celebrations -->
   <script src="js/confetti.browser.min.js"></script>
@@ -21,9 +21,17 @@
         <span class="status-dot"></span>
         <span id="room-badge-text">Room: <strong>------</strong></span>
       </div>
+      <div id="spectator-badge" class="spectator-badge" style="display: none;">
+        👁️ Spectating
+      </div>
     </div>
 
     <div class="header-controls">
+      <!-- Live AV Video & Voice Controls -->
+      <button id="btn-toggle-mic" class="icon-btn" title="Toggle Microphone (Voice Chat)" style="background: rgba(16, 185, 129, 0.25); border-color: #10b981;">🎙️</button>
+      <button id="btn-toggle-cam" class="icon-btn" title="Toggle Video Camera" style="background: rgba(59, 130, 246, 0.25); border-color: #3b82f6;">📹</button>
+      <button id="btn-add-bot" class="icon-btn" title="Add AI Bot to empty seat" style="display: none; font-size: 0.75rem; width: auto; padding: 0 8px; border-radius: 12px;">🤖+Bot</button>
+
       <button id="btn-toggle-theme" class="icon-btn" title="Toggle Deck Theme (Food Art / Classic)">🎨</button>
       <button id="btn-share-room" class="icon-btn" title="Share Room Link" style="display: none;">🔗</button>
       <button id="btn-toggle-sound" class="icon-btn" title="Toggle Sound">🔊</button>
@@ -34,24 +42,46 @@
 
   <!-- Main Game Arena -->
   <main class="game-container">
-    <div class="poker-table" id="main-table">
+    <div class="poker-table table-layout-4p" id="main-table">
       
-      <!-- Opponent Pod (Top) -->
-      <div class="player-pod opponent-pod" id="opponent-pod">
-        <div class="player-info-card" id="opponent-info-card">
-          <div class="player-avatar avatar-dad" id="opponent-avatar-container">
-            <span id="opponent-avatar-icon">🤖</span>
+      <!-- Pod 2: Top / North (Opponent / Player 3) -->
+      <div class="player-pod pod-top" id="pod-seat-2">
+        <div class="player-info-card" id="info-card-2">
+          <div class="player-avatar-wrapper" id="pod-avatar-2">
+            <span class="avatar-icon" id="avatar-icon-2">🤖</span>
+            <video id="player-video-2" class="pod-video-element" autoplay playsinline></video>
+            <div class="speaking-wave"></div>
           </div>
           <div class="player-details">
-            <span class="player-name" id="opponent-name">DadBot</span>
-            <span class="player-chips" id="opponent-chips">💰 $1,000</span>
+            <span class="player-name" id="player-name-2">DadBot</span>
+            <span class="player-chips" id="player-chips-2">💰 $1,000</span>
           </div>
         </div>
 
-        <div id="opponent-bet-badge" class="bet-badge" style="visibility: hidden;">Bet: $0</div>
+        <div id="bet-badge-2" class="bet-badge" style="visibility: hidden;">Bet: $0</div>
 
-        <!-- Opponent Cards (Top Pod) -->
-        <div class="cards-row" id="opponent-cards">
+        <div class="cards-row" id="player-cards-2">
+          <!-- Rendered via JS -->
+        </div>
+      </div>
+
+      <!-- Pod 1: West / Left (Player 2) -->
+      <div class="player-pod pod-left" id="pod-seat-1" style="display: none;">
+        <div class="player-info-card" id="info-card-1">
+          <div class="player-avatar-wrapper" id="pod-avatar-1">
+            <span class="avatar-icon" id="avatar-icon-1">👩‍💼</span>
+            <video id="player-video-1" class="pod-video-element" autoplay playsinline></video>
+            <div class="speaking-wave"></div>
+          </div>
+          <div class="player-details">
+            <span class="player-name" id="player-name-1">MomBot</span>
+            <span class="player-chips" id="player-chips-1">💰 $1,000</span>
+          </div>
+        </div>
+
+        <div id="bet-badge-1" class="bet-badge" style="visibility: hidden;">Bet: $0</div>
+
+        <div class="cards-row" id="player-cards-1">
           <!-- Rendered via JS -->
         </div>
       </div>
@@ -65,7 +95,7 @@
           <span class="pot-amount" id="pot-amount">$30</span>
         </div>
 
-        <!-- 5 Community Slots for Poker Duel -->
+        <!-- 5 Community Slots for Poker -->
         <div class="community-cards-container" id="poker-community-container">
           <span class="slots-label">Community Board (5 Slots)</span>
           <div class="community-slots-row" id="community-slots-row">
@@ -77,13 +107,13 @@
           </div>
         </div>
 
-        <!-- Center Arena for Go Fish (Ocean Pond) & Crazy 8s (Stockpile + Discard) -->
+        <!-- Center Arena for Go Fish, Crazy 8s & Spades Tricks -->
         <div class="center-arcade-stage" id="center-arcade-stage" style="display: none;">
           <!-- Rendered via JS -->
         </div>
 
-        <!-- Round / Blinds Info Ribbon -->
-        <div style="font-size: 0.75rem; color: rgba(255,255,255,0.6); letter-spacing: 0.5px;" id="round-blinds-info">
+        <!-- Round / Blinds / Table Info Ribbon -->
+        <div style="font-size: 0.75rem; color: rgba(255,255,255,0.7); letter-spacing: 0.5px;" id="round-blinds-info">
           Round 1 • Blinds: $10 / $20
         </div>
 
@@ -95,11 +125,32 @@
           <button id="btn-showdown-next" class="btn-primary btn-pulse" style="margin-top: 6px; width: auto; padding: 8px 24px;">▶ NEXT HAND</button>
         </div>
 
-        <!-- 🚨 BUSTED / CAUGHT IN A LIE BANNER -->
+        <!-- 🚨 BUSTED BANNER -->
         <div id="busted-banner" class="busted-banner" style="display: none;">
           <div class="busted-icon">🚨</div>
           <div class="busted-title">CAUGHT IN A LIE!</div>
-          <div class="busted-desc" id="busted-banner-desc">Dad lied about having 7s! Surrendered cards + drew 2 penalty cards!</div>
+          <div class="busted-desc" id="busted-banner-desc">Dad lied about having 7s! Surrendered cards + penalty cards!</div>
+        </div>
+      </div>
+
+      <!-- Pod 3: East / Right (Player 4) -->
+      <div class="player-pod pod-right" id="pod-seat-3" style="display: none;">
+        <div class="player-info-card" id="info-card-3">
+          <div class="player-avatar-wrapper" id="pod-avatar-3">
+            <span class="avatar-icon" id="avatar-icon-3">😎</span>
+            <video id="player-video-3" class="pod-video-element" autoplay playsinline></video>
+            <div class="speaking-wave"></div>
+          </div>
+          <div class="player-details">
+            <span class="player-name" id="player-name-3">BroBot</span>
+            <span class="player-chips" id="player-chips-3">💰 $1,000</span>
+          </div>
+        </div>
+
+        <div id="bet-badge-3" class="bet-badge" style="visibility: hidden;">Bet: $0</div>
+
+        <div class="cards-row" id="player-cards-3">
+          <!-- Rendered via JS -->
         </div>
       </div>
 
@@ -126,22 +177,24 @@
         </div>
       </div>
 
-      <!-- Player Pod (Bottom - You) -->
-      <div class="player-pod player-pod-bottom" id="player-pod">
-        <div class="player-info-card active-turn" id="player-info-card">
-          <div class="player-avatar">
-            <span>🤠</span>
+      <!-- Pod 0: Bottom / South (You / Local Player) -->
+      <div class="player-pod pod-bottom" id="pod-seat-0">
+        <div class="player-info-card active-turn" id="info-card-0">
+          <div class="player-avatar-wrapper" id="pod-avatar-0">
+            <span class="avatar-icon" id="avatar-icon-0">🤠</span>
+            <video id="player-video-0" class="pod-video-element" autoplay playsinline muted></video>
+            <div class="speaking-wave"></div>
           </div>
           <div class="player-details">
-            <span class="player-name" id="player-name">You</span>
-            <span class="player-chips" id="player-chips">💰 $1,000</span>
+            <span class="player-name" id="player-name-0">You</span>
+            <span class="player-chips" id="player-chips-0">💰 $1,000</span>
           </div>
         </div>
 
-        <div id="player-bet-badge" class="bet-badge" style="visibility: hidden;">Bet: $0</div>
+        <div id="bet-badge-0" class="bet-badge" style="visibility: hidden;">Bet: $0</div>
 
         <!-- Player Cards (Bottom Pod) -->
-        <div class="cards-row" id="player-cards">
+        <div class="cards-row" id="player-cards-0">
           <!-- Rendered via JS -->
         </div>
       </div>
@@ -157,7 +210,7 @@
         <div class="assist-hand-name" id="assist-hand-name">High Card (Ace High)</div>
       </div>
 
-      <!-- 10-Tier Yellow Strength Level Meter -->
+      <!-- 10-Tier Strength Level Meter -->
       <div class="meter-segments-row" id="meter-segments">
         <div class="meter-segment active" data-level="1"><div class="segment-bar"></div><span class="seg-label">High Card</span></div>
         <div class="meter-segment" data-level="2"><div class="segment-bar"></div><span class="seg-label">Pair</span></div>
@@ -194,7 +247,7 @@
       </div>
     </section>
 
-    <!-- Go Fish & Crazy 8s Action Controls Bar -->
+    <!-- Go Fish, Crazy 8s & Spades Action Controls Bar -->
     <section class="action-controls-bar" id="arcade-controls" style="display: none;">
       <div class="action-buttons-row" id="arcade-buttons-row">
         <!-- Rendered dynamically depending on active game -->
@@ -206,10 +259,10 @@
 
   <!-- Welcome / Game Selection Lobby Modal -->
   <div id="modal-welcome" class="modal-overlay active">
-    <div class="modal-card" style="max-width: 480px;">
+    <div class="modal-card" style="max-width: 500px;">
       <h2 class="modal-title">🃏 CARD ARCADIA</h2>
       <p class="modal-desc">
-        Pick a card game to play online with anyone, pass & play, or practice vs DadBot!
+        Real-time card games with Live Video & Voice Chat!
       </p>
 
       <!-- Game Cards Grid -->
@@ -217,16 +270,8 @@
         <div class="game-select-card selected" data-game="POKER_DUEL">
           <div class="game-icon">🃏</div>
           <div class="game-info">
-            <div class="game-name">Poker Duel</div>
-            <div class="game-subtitle">3 Hole Cards • 5 Community Draft • Assist HUD</div>
-          </div>
-        </div>
-
-        <div class="game-select-card" data-game="GO_FISH">
-          <div class="game-icon">🎣</div>
-          <div class="game-info">
-            <div class="game-name">Go Fish (Liar's Trap)</div>
-            <div class="game-subtitle">Ask for Cards • 🚨 Auto-Catch Lies & Penalties</div>
+            <div class="game-name">Poker (Texas Hold'em / Duel)</div>
+            <div class="game-subtitle">2-4 Players • Video & Voice • Community Board</div>
           </div>
         </div>
 
@@ -234,46 +279,42 @@
           <div class="game-icon">🎴</div>
           <div class="game-info">
             <div class="game-name">Crazy Eights</div>
-            <div class="game-subtitle">Match Rank/Food Suits • Wild 8s • Empty Hand Wins</div>
+            <div class="game-subtitle">2-4 Players • Food Suits • Wild 8s</div>
           </div>
         </div>
 
         <div class="game-select-card" data-game="SPADES">
           <div class="game-icon">♠️</div>
           <div class="game-info">
-            <div class="game-name">Spades Duel</div>
-            <div class="game-subtitle">2-Player Draft • Bid Tricks • Cosmic Jokers</div>
+            <div class="game-name">Spades</div>
+            <div class="game-subtitle">2-Player Duel or 4-Player Partnership • Cosmic Jokers</div>
+          </div>
+        </div>
+
+        <div class="game-select-card" data-game="GO_FISH">
+          <div class="game-icon">🎣</div>
+          <div class="game-info">
+            <div class="game-name">Go Fish (Liar's Trap)</div>
+            <div class="game-subtitle">2-4 Players • 🚨 Auto-Catch Lies & Penalties</div>
           </div>
         </div>
       </div>
 
-      <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 16px;">
-        <button id="btn-start-online" class="btn-primary">🌐 Play Online (Invite Anyone)</button>
-        <button id="btn-start-ai" class="btn-secondary" style="margin-top: 0;">🤖 Practice vs DadBot (AI)</button>
-        <button id="btn-start-pass" class="btn-secondary">👥 Pass & Play (Local 2-Player)</button>
+      <!-- Table Size Options -->
+      <div style="margin-top: 14px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);">
+        <div style="font-size: 0.8rem; font-weight: 700; color: #94a3b8; margin-bottom: 8px;">TABLE SEATS (DEFAULT: 2 PLAYERS)</div>
+        <div class="seat-picker-row" style="display: flex; gap: 8px;">
+          <button class="seat-btn active" data-seats="2" style="flex: 1; padding: 8px; border-radius: 8px; background: #3b82f6; color: white; font-weight: 700; border: none; cursor: pointer;">2 Players</button>
+          <button class="seat-btn" data-seats="3" style="flex: 1; padding: 8px; border-radius: 8px; background: #1e293b; color: white; font-weight: 700; border: 1px solid #475569; cursor: pointer;">3 Players</button>
+          <button class="seat-btn" data-seats="4" style="flex: 1; padding: 8px; border-radius: 8px; background: #1e293b; color: white; font-weight: 700; border: 1px solid #475569; cursor: pointer;">4 Players</button>
+        </div>
       </div>
-    </div>
-  </div>
 
-  <!-- Go Fish: Ask Rank Modal -->
-  <div id="modal-gofish-ask" class="modal-overlay">
-    <div class="modal-card" style="text-align: center;">
-      <h2 class="modal-title" id="gofish-ask-title">🎣 Ask Opponent for a Card</h2>
-      <p class="modal-desc">Select a rank you hold in your hand to ask:</p>
-      <div class="gofish-ranks-grid" id="gofish-ask-ranks-container">
-        <!-- Rendered via JS -->
-      </div>
-    </div>
-  </div>
-
-  <!-- Go Fish: Respond to Ask Modal -->
-  <div id="modal-gofish-respond" class="modal-overlay">
-    <div class="modal-card" style="text-align: center;">
-      <h2 class="modal-title" id="gofish-respond-title">Opponent asks: "Do you have any 7s?"</h2>
-      <p class="modal-desc">Choose your response (Warning: Liars will be caught & penalized!):</p>
-      <div style="display: flex; gap: 10px; margin-top: 14px;">
-        <button id="btn-gofish-handover" class="btn-primary" style="background: linear-gradient(135deg, #10b981, #059669);">🤝 Here are my cards</button>
-        <button id="btn-gofish-claimfish" class="btn-primary" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8);">🎣 GO FISH!</button>
+      <!-- Game Launch Buttons -->
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 14px;">
+        <button id="btn-start-online" class="btn-primary">🌐 Host Online Room (Video & Voice)</button>
+        <button id="btn-start-ai" class="btn-secondary" style="margin-top: 0;">🤖 Practice vs AI Bots</button>
+        <button id="btn-join-room-modal" class="btn-secondary">🔗 Join via Room Code / Spectate</button>
       </div>
     </div>
   </div>
@@ -296,35 +337,41 @@
   <div id="modal-spades-bid" class="modal-overlay">
     <div class="modal-card" style="text-align: center;">
       <h2 class="modal-title">♠️ Enter Your Trick Bid</h2>
-      <p class="modal-desc">How many of the 13 tricks will you win?</p>
+      <p class="modal-desc">How many tricks will you win?</p>
       <div class="spades-bid-grid" id="spades-bid-buttons">
         <!-- 0 (Nil) to 13 buttons rendered via JS -->
       </div>
     </div>
   </div>
 
-  <!-- Online Room Host/Join Modal -->
+  <!-- Online Room Host/Join Modal with Video & Spectator Support -->
   <div id="modal-online-room" class="modal-overlay">
     <div class="modal-card">
       <button class="modal-close-btn" id="btn-close-room-modal">✕</button>
-      <h2 class="modal-title" id="room-modal-title">🌐 Online Multiplayer</h2>
+      <h2 class="modal-title" id="room-modal-title">🌐 Online Multiplayer (Live AV)</h2>
       
       <div id="room-create-section">
-        <p class="modal-desc">Share this room link or code to play together instantly with anyone:</p>
+        <p class="modal-desc">Share this room link to play together with up to 4 players + spectators:</p>
         <div class="room-share-box">
           <span class="room-code-display" id="display-room-code">------</span>
           <button id="btn-copy-code" class="preset-chip" style="padding: 6px 12px;">📋 Copy Link</button>
         </div>
-        <div style="text-align: center; margin-bottom: 15px; color: #94a3b8; font-size: 0.85rem;" id="room-status-message">
-          ⏳ Waiting for opponent to join...
+        <div style="text-align: center; margin-bottom: 12px; color: #94a3b8; font-size: 0.85rem;" id="room-status-message">
+          ⏳ Waiting for friends to join...
+        </div>
+        <div id="room-roster-list" style="margin-bottom: 12px; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 8px; font-size: 0.82rem;">
+          <!-- Live Roster rendered here -->
         </div>
       </div>
 
-      <div id="room-join-section" style="margin-top: 15px; border-top: 1px solid #334155; padding-top: 15px;">
+      <div id="room-join-section" style="margin-top: 12px; border-top: 1px solid #334155; padding-top: 12px;">
         <p class="modal-desc" style="margin-bottom: 8px;">Or enter a Room Code to join:</p>
-        <div style="display: flex; gap: 8px;">
+        <div style="display: flex; gap: 8px; margin-bottom: 10px;">
           <input type="text" id="input-join-code" placeholder="Enter 6-char Code" maxlength="6" style="flex: 1; padding: 10px; background: #1e293b; border: 1px solid #475569; border-radius: 8px; color: white; font-weight: 700; text-transform: uppercase; font-size: 1.1rem; text-align: center;">
-          <button id="btn-confirm-join" class="btn-primary" style="width: auto; padding: 0 18px;">Join</button>
+          <button id="btn-confirm-join" class="btn-primary" style="width: auto; padding: 0 18px;">Join Player</button>
+        </div>
+        <div style="text-align: center;">
+          <button id="btn-join-spectator" class="btn-secondary" style="font-size: 0.85rem; padding: 6px 14px;">👁️ Join as Spectator</button>
         </div>
       </div>
     </div>
@@ -368,6 +415,7 @@
   <script src="js/sound.js"></script>
   <script src="js/ai-player.js"></script>
   <script src="js/network.js"></script>
+  <script src="js/media-manager.js"></script>
   <script src="js/game-engine.js"></script>
   <script src="js/games/go-fish-engine.js"></script>
   <script src="js/games/crazy-eights-engine.js"></script>

@@ -255,6 +255,19 @@ function getSuitFoodName(suit) {
   return map[s] || suit;
 }
 
+function createCardHTML(card, isFaceDown = false, theme = null) {
+  if (!card) return '<div class="card-slot">Empty</div>';
+  if (theme) setDeckTheme(theme);
+  const safeCard = (typeof Card !== 'undefined' && card instanceof Card) 
+    ? card 
+    : new Card(card.rank || 'A', card.suit || '♠');
+  if (card.customArt) safeCard.customArt = card.customArt;
+  if (card.label) safeCard.label = card.label;
+  if (card.value !== undefined) safeCard.value = card.value;
+  const el = renderCardElement(safeCard, { faceDown: isFaceDown });
+  return el.outerHTML;
+}
+
 if (typeof module !== 'undefined') {
-  module.exports = { Card, Deck, SUITS, RANKS, SUIT_COLORS, SUIT_FOOD_MAP, CARD_ART_MAP, renderCardElement, setDeckTheme, getDeckTheme, getSuitSymbol, getSuitFoodName };
+  module.exports = { Card, Deck, SUITS, RANKS, SUIT_COLORS, SUIT_FOOD_MAP, CARD_ART_MAP, renderCardElement, createCardHTML, setDeckTheme, getDeckTheme, getSuitSymbol, getSuitFoodName };
 }
