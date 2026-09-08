@@ -187,13 +187,18 @@ class MediaManager {
   // Call a specific peer
   callPeer(peerId, targetSeatIndex = null) {
     if (!this.peer || !peerId || peerId === this.peer.id) return;
-    if (this.calls.has(peerId)) {
-      console.log(`[AV] Already have call with ${peerId}`);
-      return;
-    }
-
     if (targetSeatIndex !== null) {
       this.peerSeatMap.set(peerId, targetSeatIndex);
+    }
+    const existingCall = this.calls.get(peerId);
+    if (existingCall) {
+      if (existingCall.open) {
+        console.log(`[AV] Call already active with ${peerId}`);
+        return;
+      } else {
+        try { existingCall.close(); } catch (e) {}
+        this.calls.delete(peerId);
+      }
     }
 
     // Even if localStream is not yet started, create an empty audio/video stream or call with stream
