@@ -1258,6 +1258,10 @@ class FamilyCardArcadeApp {
   onEngineStateChange(gameType, state) {
     if (gameType === this.activeGame) {
       if (this.mode === 'ONLINE') {
+        // Immediately update latestRemoteState so the host renders the fresh
+        // state without waiting for Firebase's async onValue echo-back.
+        this.latestRemoteState = state;
+
         if (this.firebaseRoom && this.firebaseRoom.roomCode) {
           this.firebaseRoom.updateGameState(state);
         }
