@@ -373,18 +373,31 @@
   <div id="modal-join-room" class="modal-overlay">
     <div class="modal-card">
       <button class="modal-close-btn" id="btn-close-join-modal">✕</button>
-      <h2 class="modal-title">🔗 Join via Room Code</h2>
-      <p class="modal-desc">Enter the 6-character room code to join the game table:</p>
+      <h2 class="modal-title" id="join-modal-title">🔗 Join via Room Code</h2>
       
-      <div style="margin-bottom: 14px;">
-        <input type="text" id="input-join-code" placeholder="Enter 6-char Code" maxlength="6" style="width: 100%; box-sizing: border-box; padding: 12px; background: #1e293b; border: 1px solid #475569; border-radius: 8px; color: white; font-weight: 700; text-transform: uppercase; font-size: 1.25rem; text-align: center; letter-spacing: 2px;">
+      <div id="join-input-section">
+        <p class="modal-desc">Enter the 6-character room code to join the game table:</p>
+        
+        <div style="margin-bottom: 14px;">
+          <input type="text" id="input-join-code" placeholder="Enter 6-char Code" maxlength="6" style="width: 100%; box-sizing: border-box; padding: 12px; background: #1e293b; border: 1px solid #475569; border-radius: 8px; color: white; font-weight: 700; text-transform: uppercase; font-size: 1.25rem; text-align: center; letter-spacing: 2px;">
+        </div>
+
+        <div style="text-align: center; margin-bottom: 12px; color: #94a3b8; font-size: 0.85rem;" id="join-status-message"></div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <button id="btn-confirm-join" class="btn-primary" style="font-size: 1.05rem; padding: 12px 20px;">🎮 Join as Player</button>
+          <button id="btn-join-spectator" class="btn-secondary" style="font-size: 0.9rem; padding: 10px 16px;">👁️ Join as Spectator</button>
+        </div>
       </div>
 
-      <div style="text-align: center; margin-bottom: 12px; color: #94a3b8; font-size: 0.85rem;" id="join-status-message"></div>
-
-      <div style="display: flex; flex-direction: column; gap: 10px;">
-        <button id="btn-confirm-join" class="btn-primary" style="font-size: 1.05rem; padding: 12px 20px;">🎮 Join as Player</button>
-        <button id="btn-join-spectator" class="btn-secondary" style="font-size: 0.9rem; padding: 10px 16px;">👁️ Join as Spectator</button>
+      <div id="guest-waiting-section" style="display: none;">
+        <p class="modal-desc" id="guest-waiting-desc">Connected to room! Waiting for the Host to start the game...</p>
+        <div id="guest-roster-list" style="margin-bottom: 12px; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 8px; font-size: 0.82rem;">
+          <!-- Live Roster for guest rendered here -->
+        </div>
+        <div style="text-align: center; color: #94a3b8; font-size: 0.85rem;" id="guest-status-message">
+          ⏳ Game will start as soon as the Host clicks Start.
+        </div>
       </div>
     </div>
   </div>
