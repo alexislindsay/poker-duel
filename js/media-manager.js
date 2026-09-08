@@ -186,7 +186,7 @@ class MediaManager {
 
   // Call a specific peer
   callPeer(peerId, targetSeatIndex = null) {
-    if (!this.peer || !peerId || peerId === this.peer.id) return;
+    if (!this.peer || this.peer.destroyed || this.peer.disconnected || !peerId || peerId === this.peer.id) return;
     if (targetSeatIndex !== null) {
       this.peerSeatMap.set(peerId, targetSeatIndex);
     }
@@ -207,7 +207,9 @@ class MediaManager {
     console.log(`[AV] Calling peer ${peerId}...`);
     try {
       const call = this.peer.call(peerId, streamToSend);
-      this.setupCallEvents(call, peerId);
+      if (call) {
+        this.setupCallEvents(call, peerId);
+      }
     } catch (e) {
       console.warn(`[AV] Error placing call to ${peerId}:`, e);
     }
@@ -215,14 +217,20 @@ class MediaManager {
 
   // Handle incoming call
   handleIncomingCall(call) {
+    if (!call) return;
     const peerId = call.peer;
     const streamToSend = this.localStream || this.createEmptyMediaStream();
 
-    call.answer(streamToSend);
-    this.setupCallEvents(call, peerId);
+    try {
+      call.answer(streamToSend);
+      this.setupCallEvents(call, peerId);
+    } catch (e) {
+      console.warn('[AV] Error answering call:', e);
+    }
   }
 
   setupCallEvents(call, peerId) {
+    if (!call) return;
     this.calls.set(peerId, call);
 
     call.on('stream', (remoteStream) => {
