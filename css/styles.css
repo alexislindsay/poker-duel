@@ -37,6 +37,10 @@ html, body {
   flex-direction: column;
 }
 
+html.has-active-room #modal-welcome {
+  display: none !important;
+}
+
 /* Header / Navigation */
 .game-header {
   display: flex;

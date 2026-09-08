@@ -644,6 +644,7 @@ class FamilyCardArcadeApp {
     // 1. If user navigated to bare URL without ?room=, reset stale session and show Welcome screen
     if (!roomParam) {
       sessionStorage.removeItem('card_arcadia_room_session');
+      document.documentElement.classList.remove('has-active-room');
       this.closeModal('modal-host-room');
       this.closeModal('modal-join-room');
       this.closeModal('modal-player-left');
@@ -651,6 +652,10 @@ class FamilyCardArcadeApp {
       this.openModal('modal-welcome');
       return;
     }
+
+    // Synchronously close welcome modal to prevent flash on reload
+    this.closeModal('modal-welcome');
+    document.documentElement.classList.add('has-active-room');
 
     const cleanCode = roomParam.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (!cleanCode) return;
@@ -670,7 +675,6 @@ class FamilyCardArcadeApp {
     }
 
     // 4. Otherwise, user entered or clicked a new room link
-    this.closeModal('modal-welcome');
     this.openModal('modal-join-room');
     if (this.inputJoinCode) this.inputJoinCode.value = cleanCode;
     if (this.joinStatusMessage) this.joinStatusMessage.textContent = `Room ${cleanCode} detected! Click Join as Player or Spectator.`;
@@ -1065,10 +1069,14 @@ class FamilyCardArcadeApp {
     if (info && info.roomId) {
       this.updateRoomBadge(info.roomId);
     }
+    if (this.firebaseRoom && this.network.localPeerId) {
+      this.firebaseRoom.updatePeerId(this.network.localPeerId);
+    }
     if (this.network.peer) {
       const roster = info.roster || [];
       roster.forEach(p => {
-        if (p.peerId !== this.network.localPeerId) {
+        if (p.peerId && p.peerId !== this.network.localPeerId) {
+          this.media.setPeerSeat(p.peerId, p.seatIndex);
           this.media.callPeer(p.peerId, p.seatIndex);
         }
       });
@@ -1137,6 +1145,12 @@ class FamilyCardArcadeApp {
     list.forEach(p => {
       if (p.peerId && p.seatIndex !== undefined && p.seatIndex !== null) {
         this.media.setPeerSeat(p.peerId, p.seatIndex);
+        if (p.peerId !== this.network.localPeerId && this.media.peer) {
+          const existingCall = this.media.calls.get(p.peerId);
+          if (!existingCall || !existingCall.open) {
+            this.media.callPeer(p.peerId, p.seatIndex);
+          }
+        }
       }
     });
 

@@ -226,6 +226,7 @@ class FirebaseRoomManager {
         if (assigned !== null) {
           currentSeats[assigned] = {
             clientId: this.clientId,
+            peerId: this.peerId || (currentSeats[assigned] && currentSeats[assigned].peerId) || null,
             name: this.localName,
             role: 'player',
             seatIndex: assigned,
@@ -276,10 +277,12 @@ class FirebaseRoomManager {
 
     connectedRef.on('value', (snap) => {
       if (snap.val() === true) {
-        mySeatRef.update({
+        const updateData = {
           status: 'online',
           lastSeen: firebase.database.ServerValue.TIMESTAMP
-        });
+        };
+        if (this.peerId) updateData.peerId = this.peerId;
+        mySeatRef.update(updateData);
 
         // When tab is closed or window drops, mark as offline after disconnect
         mySeatRef.onDisconnect().update({
@@ -288,6 +291,14 @@ class FirebaseRoomManager {
         });
       }
     });
+  }
+
+  updatePeerId(peerId) {
+    this.peerId = peerId;
+    if (!this.roomRef || this.mySeatIndex === null) return;
+    this.roomRef.child(`seats/${this.mySeatIndex}`).update({
+      peerId: peerId
+    }).catch(err => console.warn('[Firebase] Update peerId notice:', err));
   }
 
   // Realtime room listener

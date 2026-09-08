@@ -388,7 +388,10 @@ class NetworkManager {
       console.log('[P2P Guest] Lost connection to Host.');
       clearTimeout(ackTimer);
       this.connections.delete(conn.peer);
-      this.onDisconnected();
+      this.onDisconnected(conn.peer);
+      if (!this.isHost && this.roomId && !this.explicitlyDisconnected) {
+        this.scheduleAutoReconnect();
+      }
     });
 
     conn.on('error', (err) => {
@@ -396,7 +399,44 @@ class NetworkManager {
       clearTimeout(ackTimer);
       if (reject) reject(err);
       this.onError(err);
+      if (!this.isHost && this.roomId && !this.explicitlyDisconnected) {
+        this.scheduleAutoReconnect();
+      }
     });
+  }
+
+  scheduleAutoReconnect() {
+    if (this.reconnectTimeout || this.isHost || !this.roomId || this.explicitlyDisconnected) return;
+    console.log(`[P2P Guest] Scheduling auto-reconnect to Host for room ${this.roomId}...`);
+    this.reconnectTimeout = setTimeout(async () => {
+      this.reconnectTimeout = null;
+      if (!this.isHost && this.roomId && !this.explicitlyDisconnected) {
+        try {
+          const hostPeerId = `${this.getPrefix()}${this.roomId}`;
+          if (!this.peer || this.peer.destroyed) {
+            this.peer = new Peer({ debug: 1, config: { iceServers: this.getIceServers() } });
+            await new Promise((res) => this.peer.on('open', (id) => { this.localPeerId = id; res(); }));
+          }
+          console.log(`[P2P Guest] Attempting auto-reconnect to ${hostPeerId}...`);
+          const conn = this.peer.connect(hostPeerId, {
+            reliable: true,
+            metadata: {
+              name: this.localName,
+              role: this.myRole,
+              preferredSeat: this.mySeatIndex
+            }
+          });
+          this.setupGuestConnection(conn, () => {
+            console.log('[P2P Guest] Successfully reconnected to Host!');
+          }, () => {
+            this.scheduleAutoReconnect();
+          });
+        } catch (e) {
+          console.warn('[P2P Guest] Reconnect error:', e);
+          this.scheduleAutoReconnect();
+        }
+      }
+    }, 2000);
   }
 
   // Direct mesh connection between guests
@@ -498,6 +538,12 @@ class NetworkManager {
   }
 
   disconnect() {
+    this.explicitlyDisconnected = true;
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+
     this.connections.forEach(conn => {
       try { conn.close(); } catch (e) {}
     });
