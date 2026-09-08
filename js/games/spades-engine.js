@@ -387,6 +387,37 @@ class SpadesEngine {
     };
   }
 
+  restoreStateSnapshot(snapshot) {
+    if (!snapshot) return;
+    this.phase = snapshot.phase || SPADES_PHASES.NOT_STARTED;
+    this.activePlayerId = snapshot.activePlayerId !== undefined ? snapshot.activePlayerId : 0;
+    this.trickLeaderId = snapshot.trickLeaderId !== undefined ? snapshot.trickLeaderId : 0;
+    this.trickNumber = snapshot.trickNumber || 1;
+    this.spadesBroken = !!snapshot.spadesBroken;
+    this.currentDraftCard = snapshot.currentDraftCard || null;
+    this.currentTrick = snapshot.currentTrick || [];
+    this.winner = snapshot.winner || null;
+    this.lastAction = snapshot.lastAction || null;
+    this.isPartnership = snapshot.isPartnership !== undefined ? snapshot.isPartnership : (snapshot.players && snapshot.players.length === 4);
+    if (snapshot.teamScores) this.teamScores = { ...snapshot.teamScores };
+
+    if (Array.isArray(snapshot.players)) {
+      this.numPlayers = snapshot.players.length;
+      this.players = snapshot.players.map(p => ({
+        id: p.id,
+        name: p.name,
+        avatar: p.avatar,
+        isAi: !!p.isAi,
+        team: p.team !== undefined ? p.team : ((p.id % 2 === 0) ? 1 : 2),
+        hand: p.hand || [],
+        bid: p.bid,
+        tricksWon: p.tricksWon || 0,
+        score: p.score || 0,
+        bags: p.bags || 0
+      }));
+    }
+  }
+
   notifyState() {
     this.onStateChange(this.getStateSnapshot());
   }
