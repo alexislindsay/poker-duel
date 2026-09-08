@@ -15,6 +15,7 @@ class FamilyCardArcadeApp {
     this.localPlayerId = 0; // 0 = Seat 0 (South)
     this.isHost = true;
     this.isSpectator = false;
+    this.isGameActive = false;
     this.latestRemoteState = null;
     this.pendingCrazy8CardId = null;
 
@@ -44,7 +45,13 @@ class FamilyCardArcadeApp {
       onDisconnected: (peerId) => this.onNetworkDisconnected(peerId),
       onMessage: (msg, from) => this.onNetworkMessage(msg, from),
       onRosterChange: (roster) => this.onRosterChange(roster),
-      onError: (err) => this.onNetworkError(err)
+      onError: (err) => this.onNetworkError(err),
+      onStatus: (status) => this.onNetworkStatus(status),
+      getInitialState: () => ({
+        activeGame: this.activeGame,
+        state: this.getCurrentState(),
+        isGameActive: this.isGameActive
+      })
     });
 
     this.initDOM();
@@ -743,6 +750,7 @@ class FamilyCardArcadeApp {
     this.mode = 'AI';
     this.isHost = true;
     this.isSpectator = false;
+    this.isGameActive = false;
     this.localPlayerId = 0;
     this.latestRemoteState = null;
 
@@ -776,6 +784,22 @@ class FamilyCardArcadeApp {
         }
       });
     }
+
+    // Auto-sync for reconnecting guest into active game
+    if (!this.isHost && info && info.joinAckData) {
+      const ack = info.joinAckData;
+      if (ack.activeGame) this.switchGame(ack.activeGame);
+      if (ack.state) this.latestRemoteState = ack.state;
+      if (ack.isGameActive) {
+        this.isGameActive = true;
+        this.closeModal('modal-join-room');
+        this.closeModal('modal-host-room');
+        this.closeModal('modal-welcome');
+        this.promptMediaAccess();
+        this.showToast('🎮 Rejoined active game!');
+      }
+    }
+
     if (this.isHost) {
       this.network.broadcast({
         type: 'GAME_STATE_UPDATE',
@@ -788,6 +812,19 @@ class FamilyCardArcadeApp {
   onNetworkDisconnected(peerId) {
     console.log('[App] Network peer disconnected:', peerId);
     if (peerId) this.media.cleanupPeer(peerId);
+  }
+
+  onNetworkStatus(status) {
+    console.log('[App Status]', status);
+    if (this.isHost && this.hostStatusMessage) {
+      this.hostStatusMessage.textContent = `⏳ ${status}`;
+    }
+    if (this.joinStatusMessage) {
+      this.joinStatusMessage.textContent = `⏳ ${status}`;
+    }
+    if (this.guestStatusMessage) {
+      this.guestStatusMessage.textContent = `⏳ ${status}`;
+    }
   }
 
   onRosterChange(roster) {
@@ -841,6 +878,7 @@ class FamilyCardArcadeApp {
 
   onNetworkMessage(data, fromPeerId) {
     if (data.type === 'GAME_START_SIGNAL') {
+      this.isGameActive = true;
       this.closeModal('modal-join-room');
       this.closeModal('modal-host-room');
       this.closeModal('modal-welcome');
@@ -886,6 +924,7 @@ class FamilyCardArcadeApp {
   }
 
   startActiveGame() {
+    this.isGameActive = true;
     this.updateTableLayoutPods();
     const engine = this.getCurrentEngine();
     if (engine.startNewRound) {

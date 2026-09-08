@@ -18,6 +18,22 @@ class NetworkManager {
     this.onMessage = options.onMessage || (() => {});
     this.onRosterChange = options.onRosterChange || (() => {});
     this.onError = options.onError || (() => {});
+    this.onStatus = options.onStatus || (() => {});
+    this.getInitialState = options.getInitialState || null;
+
+    this.setupUnloadHandlers();
+  }
+
+  setupUnloadHandlers() {
+    const cleanup = () => {
+      try {
+        if (this.peer && !this.peer.destroyed) {
+          this.disconnect();
+        }
+      } catch (e) {}
+    };
+    window.addEventListener('beforeunload', cleanup);
+    window.addEventListener('pagehide', cleanup);
   }
 
   static generateRoomCode() {
@@ -76,10 +92,12 @@ class NetworkManager {
         }
 
         let isResolved = false;
+        const maxRetries = 6;
+
         const timer = setTimeout(() => {
           if (!isResolved) {
-            console.warn('[P2P] Room creation timed out, attempting fresh connection...');
-            if (retryCount < 2) {
+            console.warn('[P2P] Room creation timed out, attempting retry...');
+            if (retryCount < maxRetries) {
               this.createRoom(this.roomId, hostName, retryCount + 1).then(resolve).catch(reject);
             } else {
               const freshCode = NetworkManager.generateRoomCode();
@@ -119,8 +137,10 @@ class NetworkManager {
           this.onError(err);
           if (err.type === 'unavailable-id') {
             clearTimeout(timer);
-            if (customCode && retryCount < 3) {
-              console.log(`[P2P] ID ${peerId} busy at broker (refreshing host), retrying in 1.5s (attempt ${retryCount + 1})...`);
+            if (customCode && retryCount < maxRetries) {
+              const msg = `Room ID busy at signaling broker (reconnecting host), retrying in 1.5s (${retryCount + 1}/${maxRetries})...`;
+              console.log(`[P2P] ${msg}`);
+              this.onStatus(msg);
               setTimeout(() => {
                 this.createRoom(customCode, hostName, retryCount + 1).then(resolve).catch(reject);
               }, 1500);
@@ -139,8 +159,8 @@ class NetworkManager {
     });
   }
 
-  // Join an existing room (as player or spectator)
-  joinRoom(roomCode, playerName = 'Guest', asSpectator = false, preferredSeat = null) {
+  // Join an existing room (as player or spectator) with auto-retry
+  joinRoom(roomCode, playerName = 'Guest', asSpectator = false, preferredSeat = null, retryCount = 0) {
     return new Promise((resolve, reject) => {
       this.isHost = false;
       this.localName = playerName;
@@ -153,7 +173,44 @@ class NetworkManager {
           return reject(new Error('PeerJS library is not loaded.'));
         }
 
-        this.disconnect();
+        if (this.peer && !this.peer.destroyed) {
+          try { this.peer.destroy(); } catch (e) {}
+          this.peer = null;
+        }
+
+        let isResolved = false;
+        const maxRetries = 6;
+
+        const attemptRetry = (err) => {
+          if (isResolved) return;
+          isResolved = true;
+          if (this.peer && !this.peer.destroyed) {
+            try { this.peer.destroy(); } catch (e) {}
+            this.peer = null;
+          }
+          if (retryCount < maxRetries) {
+            const delay = Math.min(1500 + retryCount * 500, 3000);
+            const msg = `Host is connecting or room is starting up. Retrying (${retryCount + 1}/${maxRetries})...`;
+            console.log(`[P2P] ${msg}`);
+            this.onStatus(msg);
+            setTimeout(() => {
+              this.joinRoom(roomCode, playerName, asSpectator, preferredSeat, retryCount + 1)
+                .then(resolve)
+                .catch(reject);
+            }, delay);
+          } else {
+            console.error('[P2P] Guest join failed after retries:', err);
+            this.onError(err);
+            reject(err);
+          }
+        };
+
+        const timeoutTimer = setTimeout(() => {
+          if (!isResolved) {
+            console.warn('[P2P Guest] Connection attempt timed out, retrying...');
+            attemptRetry(new Error('Connection timed out'));
+          }
+        }, 8000);
 
         this.peer = new Peer({
           debug: 1,
@@ -162,7 +219,7 @@ class NetworkManager {
 
         this.peer.on('open', (id) => {
           this.localPeerId = id;
-          console.log(`[P2P Guest] Connected with ID: ${id}, joining host: ${hostPeerId}...`);
+          console.log(`[P2P Guest] Connected with ID: ${id}, joining host: ${hostPeerId} (attempt ${retryCount + 1})...`);
           
           const conn = this.peer.connect(hostPeerId, {
             reliable: true,
@@ -173,7 +230,14 @@ class NetworkManager {
             }
           });
 
-          this.setupGuestConnection(conn, resolve, reject);
+          this.setupGuestConnection(conn, (roomId) => {
+            isResolved = true;
+            clearTimeout(timeoutTimer);
+            resolve(roomId);
+          }, (err) => {
+            clearTimeout(timeoutTimer);
+            attemptRetry(err);
+          });
         });
 
         // Also allow other guests to connect directly for mesh AV if needed
@@ -183,9 +247,9 @@ class NetworkManager {
         });
 
         this.peer.on('error', (err) => {
-          console.error('[P2P] Guest join error:', err);
-          this.onError(err);
-          reject(err);
+          console.error('[P2P] Guest peer error:', err);
+          clearTimeout(timeoutTimer);
+          attemptRetry(err);
         });
       } catch (err) {
         reject(err);
@@ -239,13 +303,22 @@ class NetworkManager {
 
       this.peerInfoMap.set(conn.peer, clientInfo);
 
-      // Send welcome assignment to new client
-      conn.send({
+      // Build welcome assignment to new/reconnecting client
+      const joinAck = {
         type: 'ROOM_JOIN_ACK',
         roomId: this.roomId,
         yourInfo: clientInfo,
         roster: Array.from(this.peerInfoMap.values())
-      });
+      };
+
+      if (this.getInitialState) {
+        const extra = this.getInitialState();
+        if (extra) {
+          Object.assign(joinAck, extra);
+        }
+      }
+
+      conn.send(joinAck);
 
       // Broadcast roster update to all clients
       this.broadcastRoster();
@@ -276,19 +349,35 @@ class NetworkManager {
   setupGuestConnection(conn, resolve, reject) {
     this.connections.set(conn.peer, conn);
 
+    let ackReceived = false;
+    const ackTimer = setTimeout(() => {
+      if (!ackReceived) {
+        console.warn('[P2P Guest] Timed out waiting for ROOM_JOIN_ACK');
+        if (reject) reject(new Error('Timed out waiting for host response'));
+      }
+    }, 7000);
+
     conn.on('open', () => {
       console.log('[P2P Guest] Connected to Host channel.');
     });
 
     conn.on('data', (data) => {
       if (data && data.type === 'ROOM_JOIN_ACK') {
+        ackReceived = true;
+        clearTimeout(ackTimer);
         this.myRole = data.yourInfo.role;
         this.mySeatIndex = data.yourInfo.seatIndex;
         console.log(`[P2P Guest] Joined room ${data.roomId} as ${this.myRole} (Seat ${this.mySeatIndex})`);
         
         this.updateRoster(data.roster);
         if (resolve) resolve(this.roomId);
-        this.onConnected({ isHost: false, roomId: this.roomId, yourInfo: data.yourInfo, roster: data.roster });
+        this.onConnected({
+          isHost: false,
+          roomId: this.roomId,
+          yourInfo: data.yourInfo,
+          roster: data.roster,
+          joinAckData: data
+        });
         return;
       }
 
@@ -297,12 +386,14 @@ class NetworkManager {
 
     conn.on('close', () => {
       console.log('[P2P Guest] Lost connection to Host.');
+      clearTimeout(ackTimer);
       this.connections.delete(conn.peer);
       this.onDisconnected();
     });
 
     conn.on('error', (err) => {
       console.error('[P2P Guest] Connection error:', err);
+      clearTimeout(ackTimer);
       if (reject) reject(err);
       this.onError(err);
     });
