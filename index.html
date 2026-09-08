@@ -6,6 +6,9 @@
   <title>Card Arcade - Online & Solo Card Games with Video & Voice</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🃏</text></svg>">
   <link rel="stylesheet" href="css/styles.css">
+  <!-- Firebase Realtime Database SDK (Client-side Web) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
   <!-- PeerJS bundled locally for 100% reliable zero-server P2P multiplayer & WebRTC AV calls -->
   <script src="js/peerjs.min.js"></script>
   <!-- Canvas Confetti for winning celebrations -->
@@ -428,6 +431,21 @@
     </div>
   </div>
 
+  <!-- Player Left Room / AI Replacement Modal -->
+  <div id="modal-player-left" class="modal-overlay">
+    <div class="modal-card" style="text-align: center; border-color: #38bdf8; box-shadow: 0 0 35px rgba(56, 189, 248, 0.35);">
+      <div style="font-size: 2.5rem; margin-bottom: 6px;">🚪</div>
+      <h2 class="modal-title" id="player-left-title" style="font-size: 1.3rem;">Player Left Room</h2>
+      <p class="modal-desc" id="player-left-desc" style="font-size: 0.95rem; color: #cbd5e1; margin-bottom: 18px;">
+        A player has left the table. Would you like to replace them with an AI Bot to keep playing, or leave the room?
+      </p>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <button id="btn-replace-ai" class="btn-primary btn-pulse" style="font-size: 1rem; padding: 12px 18px;">🤖 Replace with AI Bot</button>
+        <button id="btn-player-left-leave" class="btn-secondary" style="font-size: 0.9rem; padding: 10px 16px;">🚪 Leave Room</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Floating Toast Notifications -->
   <div id="toast-container" class="toast-container"></div>
 
@@ -439,6 +457,7 @@
   <script src="js/poker-evaluator.js"></script>
   <script src="js/sound.js"></script>
   <script src="js/ai-player.js"></script>
+  <script src="js/firebase-room.js"></script>
   <script src="js/network.js"></script>
   <script src="js/media-manager.js"></script>
   <script src="js/game-engine.js"></script>
