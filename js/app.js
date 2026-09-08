@@ -638,15 +638,24 @@ class FamilyCardArcadeApp {
     // Showdown Next
     if (this.btnShowdownNext) {
       this.btnShowdownNext.addEventListener('click', () => {
+        if (this.btnShowdownNext.disabled) return;
+        this.btnShowdownNext.disabled = true;
         this.showdownBanner.style.display = 'none';
+
         if (this.isHost) {
-          this.pokerEngine.startNewRound();
+          if (this.pokerEngine && (this.pokerEngine.phase === 'ROUND_OVER' || this.pokerEngine.roundNumber === 0)) {
+            this.pokerEngine.startNewRound();
+          }
         } else if (this.mode === 'ONLINE') {
           if (this.firebaseRoom && this.firebaseRoom.roomCode) {
             this.firebaseRoom.submitAction({ game: 'POKER_DUEL', action: 'next_round', playerId: this.localPlayerId });
           }
           if (this.network) {
             this.network.send({ type: 'ACTION_REQUEST', game: 'POKER_DUEL', action: 'next_round', playerId: this.localPlayerId });
+          }
+        } else {
+          if (this.pokerEngine && (this.pokerEngine.phase === 'ROUND_OVER' || this.pokerEngine.roundNumber === 0)) {
+            this.pokerEngine.startNewRound();
           }
         }
       });
@@ -1329,7 +1338,10 @@ class FamilyCardArcadeApp {
 
   onEngineEvent(gameType, event) {
     console.log(`[Event: ${gameType}]`, event);
-    if (event.type === 'PLAYER_CALLED' || event.type === 'PLAYER_RAISED') {
+    if (event.type === 'ROUND_STARTED') {
+      if (this.showdownBanner) this.showdownBanner.style.display = 'none';
+      if (this.btnShowdownNext) this.btnShowdownNext.disabled = false;
+    } else if (event.type === 'PLAYER_CALLED' || event.type === 'PLAYER_RAISED') {
       if (typeof SoundFX !== 'undefined') SoundFX.play('chips');
     } else if (event.type === 'SHOWDOWN_COMPLETED' || event.type === 'CRAZY_EIGHTS_WON' || event.type === 'SPADES_ROUND_COMPLETED') {
       if (typeof SoundFX !== 'undefined') SoundFX.play('win');
@@ -1673,33 +1685,55 @@ class FamilyCardArcadeApp {
     if (this.btnAllIn) this.btnAllIn.disabled = !isMyTurn || !canBet;
 
     // Showdown Banner
-    if (this.showdownBanner && state.phase === 'ROUND_OVER') {
-      this.showdownBanner.style.display = 'flex';
-      const me = state.players ? state.players[this.localPlayerId] : null;
-      const amWinner = state.roundWinner && state.roundWinner.id === this.localPlayerId;
-      const amFolded = me && me.folded;
+    if (this.showdownBanner) {
+      if (state.phase === 'ROUND_OVER') {
+        this.showdownBanner.style.display = 'flex';
+        if (this.btnShowdownNext) this.btnShowdownNext.disabled = false;
+        const me = state.players ? state.players[this.localPlayerId] : null;
+        const amWinner = state.roundWinner && state.roundWinner.id === this.localPlayerId;
+        const amFolded = me && me.folded;
 
-      if (this.showdownTrophyIcon) {
-        this.showdownTrophyIcon.textContent = amWinner ? '🏆' : (amFolded ? '🏳️' : '🃏');
-      }
-      if (this.showdownBannerTitle) {
-        if (amWinner) {
-          this.showdownBannerTitle.textContent = state.winReason || 'YOU WON!';
-        } else if (amFolded) {
-          const winnerName = state.roundWinner ? state.roundWinner.name : 'Opponent';
-          this.showdownBannerTitle.textContent = `You Folded • ${winnerName} Wins`;
-        } else {
-          const winnerName = state.roundWinner ? state.roundWinner.name : 'Opponent';
-          this.showdownBannerTitle.textContent = `${winnerName} Wins the Hand`;
+        if (this.showdownTrophyIcon) {
+          this.showdownTrophyIcon.textContent = amWinner ? '🏆' : (amFolded ? '🏳️' : '🃏');
         }
+        if (this.showdownBannerTitle) {
+          if (amWinner) {
+            this.showdownBannerTitle.textContent = state.winReason || 'YOU WON!';
+          } else if (amFolded) {
+            const winnerName = state.roundWinner ? state.roundWinner.name : 'Opponent';
+            this.showdownBannerTitle.textContent = `You Folded • ${winnerName} Wins`;
+          } else {
+            const winnerName = state.roundWinner ? state.roundWinner.name : 'Opponent';
+            this.showdownBannerTitle.textContent = `${winnerName} Wins the Hand`;
+          }
+        }
+        if (this.showdownBannerDesc) {
+          this.showdownBannerDesc.textContent = `Pot won: $${state.potWonAmount || 0}`;
+        }
+      } else {
+        this.showdownBanner.style.display = 'none';
       }
-      if (this.showdownBannerDesc) {
-        this.showdownBannerDesc.textContent = `Pot won: $${state.potWonAmount || 0}`;
+    }
+
+    // Tournament Game Over Modal
+    if (state.phase === 'GAME_OVER') {
+      if (this.showdownBanner) this.showdownBanner.style.display = 'none';
+      if (this.modalGameOver) {
+        const winner = state.gameWinner;
+        const isMe = winner && winner.id === this.localPlayerId;
+        if (this.gameOverTitle) {
+          this.gameOverTitle.textContent = isMe ? '👑 VICTORY!' : 'GAME OVER';
+        }
+        if (this.gameOverDesc) {
+          this.gameOverDesc.textContent = isMe ? 'You won all the chips in the duel!' : `${winner ? winner.name : 'Opponent'} took all the chips!`;
+        }
+        this.openModal('modal-game-over');
       }
     }
   }
 
   renderCrazy8Table(state) {
+    if (this.showdownBanner) this.showdownBanner.style.display = 'none';
     if (this.pokerCommunityContainer) this.pokerCommunityContainer.style.display = 'none';
     if (this.handStrengthMeter) this.handStrengthMeter.style.display = 'none';
     if (this.centerArcadeStage) this.centerArcadeStage.style.display = 'flex';
@@ -1784,6 +1818,7 @@ class FamilyCardArcadeApp {
   }
 
   renderSpadesTable(state) {
+    if (this.showdownBanner) this.showdownBanner.style.display = 'none';
     if (this.pokerCommunityContainer) this.pokerCommunityContainer.style.display = 'none';
     if (this.handStrengthMeter) this.handStrengthMeter.style.display = 'none';
     if (this.centerArcadeStage) this.centerArcadeStage.style.display = 'flex';

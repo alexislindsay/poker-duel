@@ -139,6 +139,12 @@ class GameEngine {
   }
 
   startNewRound() {
+    // Only allow starting a new round if previous hand has finished, or if starting game (roundNumber 0)
+    if (this.phase !== GAME_PHASES.ROUND_OVER && this.roundNumber > 0) {
+      console.warn(`[GameEngine] startNewRound ignored: current phase is '${this.phase}', expected 'ROUND_OVER'`);
+      return;
+    }
+
     // Filter players with chips
     const playersWithChips = this.players.filter(p => p.chips > 0);
     if (playersWithChips.length <= 1) {
