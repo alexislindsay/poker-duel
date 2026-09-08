@@ -828,7 +828,10 @@ class FamilyCardArcadeApp {
     this.mode = 'ONLINE';
     this.isHost = true;
     this.isSpectator = false;
+    this.isGameActive = false;
     this.localPlayerId = 0;
+    this.latestRemoteState = null;
+    this.initEngines();
 
     try {
       this.closeModal('modal-welcome');
@@ -844,7 +847,7 @@ class FamilyCardArcadeApp {
             seatCount: this.seatCount,
             gameType: this.activeGame,
             name: 'Player 1',
-            initialGameState: this.getCurrentState()
+            initialGameState: null
           });
         } catch (fbErr) {
           console.warn('[Firebase Room] Cloud setup notice, continuing with direct P2P:', fbErr);
@@ -965,6 +968,7 @@ class FamilyCardArcadeApp {
     this.localPlayerId = 0;
     this.latestRemoteState = null;
     this.pendingLeftPlayerSeat = null;
+    this.initEngines();
 
     this.updateRoomBadge(null);
     if (this.spectatorBadge) this.spectatorBadge.style.display = 'none';
@@ -1141,7 +1145,7 @@ class FamilyCardArcadeApp {
     list.forEach(p => {
       if (p.peerId && p.seatIndex !== undefined && p.seatIndex !== null) {
         this.media.setPeerSeat(p.peerId, p.seatIndex);
-        if (p.peerId !== this.network.localPeerId && this.media.peer) {
+        if (p.peerId !== this.network.localPeerId && this.media.peer && !this.media.peer.destroyed && !this.media.peer.disconnected && this.isGameActive) {
           const existingCall = this.media.calls.get(p.peerId);
           if (!existingCall || !existingCall.open) {
             this.media.callPeer(p.peerId, p.seatIndex);

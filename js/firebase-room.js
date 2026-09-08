@@ -412,6 +412,9 @@ class FirebaseRoomManager {
       try { ref.off(type, listener); } catch (e) {}
     });
     this.listeners = [];
+    this.roster = [];
+    this.peerId = null;
+    this.meta = null;
     this.isAttached = false;
     this.roomRef = null;
     this.roomCode = null;
