@@ -585,6 +585,56 @@ class FamilyCardArcadeApp {
       this.btnDraftDiscard.addEventListener('click', () => this.handleLocalDraftDecision('discard'));
     }
 
+    // Draft Spotlight — Drag to Move
+    const dragHandle = document.getElementById('draft-drag-handle');
+    const tray = this.draftSpotlight;
+    if (dragHandle && tray) {
+      let isDragging = false;
+      let startPointerX = 0, startPointerY = 0;
+      let startTrayX = 0, startTrayY = 0;
+
+      dragHandle.addEventListener('pointerdown', (e) => {
+        // Resolve current position from CSS (handles initial transform-based centering)
+        const rect = tray.getBoundingClientRect();
+        isDragging = true;
+        startPointerX = e.clientX;
+        startPointerY = e.clientY;
+        startTrayX = rect.left;
+        startTrayY = rect.top;
+
+        // Switch from transform-based centering to absolute coords
+        tray.style.transform = 'none';
+        tray.style.left = startTrayX + 'px';
+        tray.style.top  = startTrayY + 'px';
+
+        tray.classList.add('is-dragging');
+        dragHandle.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      });
+
+      dragHandle.addEventListener('pointermove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startPointerX;
+        const dy = e.clientY - startPointerY;
+        const trayRect = tray.getBoundingClientRect();
+        const maxX = window.innerWidth  - trayRect.width;
+        const maxY = window.innerHeight - trayRect.height;
+        const newX = Math.min(Math.max(0, startTrayX + dx), maxX);
+        const newY = Math.min(Math.max(0, startTrayY + dy), maxY);
+        tray.style.left = newX + 'px';
+        tray.style.top  = newY + 'px';
+        e.preventDefault();
+      });
+
+      const stopDrag = () => {
+        if (!isDragging) return;
+        isDragging = false;
+        tray.classList.remove('is-dragging');
+      };
+      dragHandle.addEventListener('pointerup',     stopDrag);
+      dragHandle.addEventListener('pointercancel', stopDrag);
+    }
+
     // Showdown Next
     if (this.btnShowdownNext) {
       this.btnShowdownNext.addEventListener('click', () => {
