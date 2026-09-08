@@ -47,7 +47,7 @@ class MediaManager {
   }
 
   // Request user camera & mic permissions and start stream with graceful fallbacks
-  async startMedia(constraints = { video: true, audio: true }) {
+  async startMedia(constraints = { video: true, audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }) {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       console.warn('[AV] getUserMedia not supported in this browser/context');
       return null;
@@ -58,14 +58,18 @@ class MediaManager {
         this.stopMedia();
       }
 
+      const audioConfig = (typeof constraints.audio === 'object') ? constraints.audio : { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
       let stream = null;
       try {
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: constraints.video ? true : false,
+          audio: audioConfig
+        });
       } catch (videoErr) {
         console.warn('[AV] Video+Audio capture failed, trying audio-only...', videoErr);
         if (constraints.video) {
           try {
-            stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            stream = await navigator.mediaDevices.getUserMedia({ audio: audioConfig, video: false });
           } catch (audioErr) {
             console.warn('[AV] Audio-only capture also failed:', audioErr);
           }

@@ -195,22 +195,26 @@ class FamilyCardArcadeApp {
 
     // Modals
     this.modalWelcome = document.getElementById('modal-welcome');
-    this.modalOnline = document.getElementById('modal-online-room');
+    this.modalHostRoom = document.getElementById('modal-host-room');
+    this.modalJoinRoom = document.getElementById('modal-join-room');
     this.modalRules = document.getElementById('modal-rules');
     this.modalGameOver = document.getElementById('modal-game-over');
     this.modalCrazy8Suit = document.getElementById('modal-wild-suit');
     this.modalSpadesBid = document.getElementById('modal-spades-bid');
 
-    // Online Modal Elements
+    // Online Host & Join Elements
     this.displayRoomCode = document.getElementById('display-room-code');
     this.btnCopyCode = document.getElementById('btn-copy-code');
     this.inputJoinCode = document.getElementById('input-join-code');
     this.btnConfirmJoin = document.getElementById('btn-confirm-join');
     this.btnJoinSpectator = document.getElementById('btn-join-spectator');
-    this.roomStatusMessage = document.getElementById('room-status-message');
+    this.hostStatusMessage = document.getElementById('host-status-message');
+    this.joinStatusMessage = document.getElementById('join-status-message');
     this.roomRosterList = document.getElementById('room-roster-list');
     this.btnHostStartGame = document.getElementById('btn-host-start-game');
     this.btnLobbyAddBot = document.getElementById('btn-lobby-add-bot');
+    this.btnLeaveRoom = document.getElementById('btn-leave-room');
+    this.btnJoinRoomModal = document.getElementById('btn-join-room-modal');
 
     // Game Over Elements
     this.gameOverTitle = document.getElementById('game-over-title');
@@ -350,11 +354,16 @@ class FamilyCardArcadeApp {
       });
     }
 
-    const btnJoinRoomModal = document.getElementById('btn-join-room-modal');
-    if (btnJoinRoomModal) {
-      btnJoinRoomModal.addEventListener('click', () => {
+    if (this.btnJoinRoomModal) {
+      this.btnJoinRoomModal.addEventListener('click', () => {
         this.closeModal('modal-welcome');
-        this.openModal('modal-online-room');
+        this.openModal('modal-join-room');
+      });
+    }
+
+    if (this.btnLeaveRoom) {
+      this.btnLeaveRoom.addEventListener('click', () => {
+        this.leaveRoom();
       });
     }
 
@@ -365,6 +374,7 @@ class FamilyCardArcadeApp {
         if (code.length >= 4) {
           this.joinOnlineRoom(code, false);
         } else {
+          if (this.joinStatusMessage) this.joinStatusMessage.textContent = '⚠️ Please enter a valid room code.';
           this.showToast('Please enter a valid room code.');
         }
       });
@@ -376,6 +386,7 @@ class FamilyCardArcadeApp {
         if (code.length >= 4) {
           this.joinOnlineRoom(code, true);
         } else {
+          if (this.joinStatusMessage) this.joinStatusMessage.textContent = '⚠️ Please enter a valid room code.';
           this.showToast('Please enter a valid room code to spectate.');
         }
       });
@@ -397,7 +408,7 @@ class FamilyCardArcadeApp {
 
     if (this.btnHostStartGame) {
       this.btnHostStartGame.addEventListener('click', () => {
-        this.closeModal('modal-online-room');
+        this.closeModal('modal-host-room');
 
         // Configure multiplayer human players across engines
         const roster = this.network ? this.network.getRoster() : [];
@@ -537,8 +548,15 @@ class FamilyCardArcadeApp {
     });
 
     // Close Modals
-    const btnCloseRoom = document.getElementById('btn-close-room-modal');
-    if (btnCloseRoom) btnCloseRoom.addEventListener('click', () => this.closeModal('modal-online-room'));
+    const btnCloseHost = document.getElementById('btn-close-host-modal');
+    if (btnCloseHost) btnCloseHost.addEventListener('click', () => this.leaveRoom());
+    const btnCloseJoin = document.getElementById('btn-close-join-modal');
+    if (btnCloseJoin) {
+      btnCloseJoin.addEventListener('click', () => {
+        this.closeModal('modal-join-room');
+        this.openModal('modal-welcome');
+      });
+    }
     const btnCloseRules = document.getElementById('btn-close-rules');
     if (btnCloseRules) btnCloseRules.addEventListener('click', () => this.closeModal('modal-rules'));
     const btnDismissRules = document.getElementById('btn-dismiss-rules');
@@ -575,10 +593,10 @@ class FamilyCardArcadeApp {
 
     if (roomParam) {
       const cleanCode = roomParam.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-      this.openModal('modal-online-room');
+      this.closeModal('modal-welcome');
+      this.openModal('modal-join-room');
       if (this.inputJoinCode) this.inputJoinCode.value = cleanCode;
-      // Auto join if coming from a direct link
-      this.joinOnlineRoom(cleanCode, false);
+      if (this.joinStatusMessage) this.joinStatusMessage.textContent = 'Room link detected! Click Join as Player or Spectator.';
     }
   }
 
@@ -625,8 +643,10 @@ class FamilyCardArcadeApp {
     if (code && code !== 'null' && code !== 'undefined' && code !== '------') {
       if (this.roomBadge) this.roomBadge.style.display = 'flex';
       if (this.roomBadgeText) this.roomBadgeText.innerHTML = `Room: <strong>${code}</strong>`;
+      if (this.btnLeaveRoom) this.btnLeaveRoom.style.display = 'inline-flex';
     } else {
       if (this.roomBadge) this.roomBadge.style.display = 'none';
+      if (this.btnLeaveRoom) this.btnLeaveRoom.style.display = 'none';
     }
   }
 
@@ -638,14 +658,15 @@ class FamilyCardArcadeApp {
 
     try {
       this.closeModal('modal-welcome');
-      this.openModal('modal-online-room');
-      if (this.roomStatusMessage) this.roomStatusMessage.textContent = '⏳ Creating room code...';
+      this.closeModal('modal-join-room');
+      this.openModal('modal-host-room');
+      if (this.hostStatusMessage) this.hostStatusMessage.textContent = '⏳ Creating room code...';
 
       const code = await this.network.createRoom(customCode, 'Player 1 (Host)');
       if (this.displayRoomCode) this.displayRoomCode.textContent = code;
       this.updateRoomBadge(code);
       if (this.btnShareRoom) this.btnShareRoom.style.display = 'flex';
-      if (this.roomStatusMessage) this.roomStatusMessage.textContent = '⏳ Waiting for other player(s) to join...';
+      if (this.hostStatusMessage) this.hostStatusMessage.textContent = '⏳ Waiting for other player(s) to join...';
 
       // Persist session & update URL
       sessionStorage.setItem('card_arcadia_room_session', JSON.stringify({
@@ -660,7 +681,7 @@ class FamilyCardArcadeApp {
       this.promptMediaAccess();
     } catch (err) {
       console.error('[Host Room Error]', err);
-      if (this.roomStatusMessage) this.roomStatusMessage.textContent = '⚠️ Could not reach signaling server. Please retry.';
+      if (this.hostStatusMessage) this.hostStatusMessage.textContent = '⚠️ Could not reach signaling server. Please retry.';
       this.showToast(`Error creating room: ${err.message || 'Check connection'}`);
     }
   }
@@ -671,10 +692,11 @@ class FamilyCardArcadeApp {
     this.isSpectator = asSpectator;
 
     try {
-      if (this.roomStatusMessage) this.roomStatusMessage.textContent = asSpectator ? 'Joining as spectator...' : 'Connecting to host...';
+      if (this.joinStatusMessage) this.joinStatusMessage.textContent = asSpectator ? 'Joining as spectator...' : 'Connecting to host...';
       const roomId = await this.network.joinRoom(code, asSpectator ? 'Spectator' : 'Player 2', asSpectator, preferredSeat);
       
-      this.closeModal('modal-online-room');
+      this.closeModal('modal-join-room');
+      this.closeModal('modal-welcome');
       this.updateRoomBadge(roomId);
       if (this.spectatorBadge) this.spectatorBadge.style.display = asSpectator ? 'flex' : 'none';
 
@@ -694,8 +716,39 @@ class FamilyCardArcadeApp {
       this.showToast(`Connected to room ${roomId}!`);
     } catch (err) {
       console.error('[Join Room Error]', err);
+      if (this.joinStatusMessage) this.joinStatusMessage.textContent = `⚠️ Failed to join: ${err.message || 'Room not found'}`;
       this.showToast(`Failed to join room: ${err.message || 'Room not found'}`);
     }
+  }
+
+  leaveRoom() {
+    console.log('[App] Leaving room...');
+    sessionStorage.removeItem('card_arcadia_room_session');
+    window.history.replaceState({}, '', window.location.pathname);
+
+    if (this.media) {
+      this.media.destroy();
+    }
+    if (this.network) {
+      this.network.disconnect();
+    }
+
+    this.mode = 'AI';
+    this.isHost = true;
+    this.isSpectator = false;
+    this.localPlayerId = 0;
+    this.latestRemoteState = null;
+
+    this.updateRoomBadge(null);
+    if (this.spectatorBadge) this.spectatorBadge.style.display = 'none';
+    if (this.btnShareRoom) this.btnShareRoom.style.display = 'none';
+
+    this.closeModal('modal-host-room');
+    this.closeModal('modal-join-room');
+    this.closeModal('modal-game-over');
+    this.openModal('modal-welcome');
+
+    this.showToast('🚪 Left room. Returned to Main Menu.');
   }
 
   onNetworkConnected(info) {
