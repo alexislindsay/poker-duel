@@ -171,6 +171,10 @@ class FirebaseRoomManager {
       throw new Error(`Room ${this.roomCode} does not exist.`);
     }
 
+    const meta = snap.val() || {};
+    this.meta = meta;
+    this.isInitiator = (meta.initiatorId === this.clientId);
+
     if (asSpectator) {
       this.mySeatIndex = null;
       // Register in spectators node

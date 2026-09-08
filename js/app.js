@@ -481,6 +481,12 @@ class FamilyCardArcadeApp {
         }
 
         this.startActiveGame();
+        
+        // Update Firebase with in_game status and state
+        if (this.firebaseRoom && this.firebaseRoom.roomCode) {
+          this.firebaseRoom.updateGameState(this.getCurrentState(), { status: 'in_game' });
+        }
+
         if (this.network && this.isHost) {
           this.network.broadcast({
             type: 'GAME_START_SIGNAL',
@@ -657,11 +663,7 @@ class FamilyCardArcadeApp {
     // 3. Only auto-restore if the saved session matches the active URL room code
     if (savedSession && savedSession.roomId === cleanCode) {
       console.log('[App] Restoring room session for', cleanCode, savedSession);
-      if (savedSession.isHost) {
-        this.openHostRoomModal(cleanCode);
-      } else {
-        this.joinOnlineRoom(cleanCode, savedSession.role === 'spectator', savedSession.seatIndex);
-      }
+      this.restoreOnlineRoom(cleanCode, savedSession);
       return;
     }
 
@@ -670,6 +672,97 @@ class FamilyCardArcadeApp {
     this.openModal('modal-join-room');
     if (this.inputJoinCode) this.inputJoinCode.value = cleanCode;
     if (this.joinStatusMessage) this.joinStatusMessage.textContent = `Room ${cleanCode} detected! Click Join as Player or Spectator.`;
+  }
+
+  async restoreOnlineRoom(roomCode, savedSession = null) {
+    this.mode = 'ONLINE';
+    const isHost = savedSession ? !!savedSession.isHost : false;
+    const preferredSeat = savedSession && savedSession.seatIndex !== undefined ? savedSession.seatIndex : (isHost ? 0 : 1);
+    const asSpectator = savedSession ? (savedSession.role === 'spectator') : false;
+
+    this.isHost = isHost;
+    this.isSpectator = asSpectator;
+    this.localPlayerId = preferredSeat;
+
+    try {
+      this.updateRoomBadge(roomCode);
+
+      // Join/reconnect to cloud room without wiping existing state
+      let roomId = roomCode;
+      if (this.firebaseRoom) {
+        roomId = await this.firebaseRoom.joinRoom(roomCode, isHost ? 'Player 1' : `Player ${preferredSeat + 1}`, asSpectator, preferredSeat);
+        this.localPlayerId = this.firebaseRoom.mySeatIndex !== null ? this.firebaseRoom.mySeatIndex : preferredSeat;
+        if (this.firebaseRoom.isInitiator) {
+          this.isHost = true;
+        }
+
+        // Fetch current room state to determine if in-game or lobby
+        const snap = await this.firebaseRoom.roomRef.once('value');
+        const roomData = snap.val() || {};
+        const meta = roomData.meta || {};
+        const gameState = roomData.gameState;
+
+        if (meta.gameType) this.switchGame(meta.gameType);
+        if (gameState) this.latestRemoteState = gameState;
+
+        if (meta.status === 'in_game' || (gameState && gameState.phase && gameState.phase !== 'LOBBY')) {
+          this.isGameActive = true;
+          this.closeModal('modal-welcome');
+          this.closeModal('modal-host-room');
+          this.closeModal('modal-join-room');
+          this.closeModal('modal-player-left');
+          this.promptMediaAccess();
+          this.render();
+          this.showToast('🎮 Reconnected to active match!');
+        } else {
+          // Still waiting in lobby
+          if (this.isHost) {
+            this.closeModal('modal-welcome');
+            this.closeModal('modal-join-room');
+            this.openModal('modal-host-room');
+            if (this.displayRoomCode) this.displayRoomCode.textContent = roomCode;
+            if (this.btnShareRoom) this.btnShareRoom.style.display = 'flex';
+          } else {
+            this.closeModal('modal-welcome');
+            this.closeModal('modal-host-room');
+            this.openModal('modal-join-room');
+            if (this.joinInputSection) this.joinInputSection.style.display = 'none';
+            if (this.guestWaitingSection) this.guestWaitingSection.style.display = 'block';
+          }
+        }
+      } else {
+        if (isHost) {
+          roomId = await this.network.createRoom(roomCode, 'Player 1');
+        } else {
+          roomId = await this.network.joinRoom(roomCode, `Player ${preferredSeat + 1}`, asSpectator, preferredSeat);
+        }
+      }
+
+      // Initialize AV peer
+      try {
+        if (this.isHost) {
+          await this.network.createRoom(roomCode, 'Player 1');
+          this.media.attachPeer(this.network.peer, 0, false);
+        } else {
+          await this.network.joinRoom(roomCode, `Player ${this.localPlayerId + 1}`, asSpectator, this.localPlayerId);
+          this.media.attachPeer(this.network.peer, this.localPlayerId, asSpectator);
+        }
+      } catch (peerErr) {
+        console.warn('[AV Peer] Notice on restore:', peerErr);
+      }
+
+      // Persist session & update URL
+      sessionStorage.setItem('card_arcadia_room_session', JSON.stringify({
+        roomId: roomCode,
+        isHost: this.isHost,
+        role: asSpectator ? 'spectator' : 'player',
+        seatIndex: this.localPlayerId
+      }));
+      window.history.replaceState({}, '', `?room=${roomCode}`);
+    } catch (err) {
+      console.error('[Restore Room Error]', err);
+      this.showToast(`Error reconnecting: ${err.message || 'Room unavailable'}`);
+    }
   }
 
   async promptMediaAccess() {
