@@ -633,30 +633,43 @@ class FamilyCardArcadeApp {
     const params = new URLSearchParams(window.location.search);
     const roomParam = params.get('room');
     
-    // Check saved session in sessionStorage for auto-reconnect on refresh
+    // 1. If user navigated to bare URL without ?room=, reset stale session and show Welcome screen
+    if (!roomParam) {
+      sessionStorage.removeItem('card_arcadia_room_session');
+      this.closeModal('modal-host-room');
+      this.closeModal('modal-join-room');
+      this.closeModal('modal-player-left');
+      this.closeModal('modal-game-over');
+      this.openModal('modal-welcome');
+      return;
+    }
+
+    const cleanCode = roomParam.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!cleanCode) return;
+
+    // 2. Check saved session in sessionStorage for this specific room code
     let savedSession = null;
     try {
       const raw = sessionStorage.getItem('card_arcadia_room_session');
       if (raw) savedSession = JSON.parse(raw);
     } catch (e) {}
 
-    if (savedSession && savedSession.roomId) {
-      console.log('[App] Restoring previous room session:', savedSession);
+    // 3. Only auto-restore if the saved session matches the active URL room code
+    if (savedSession && savedSession.roomId === cleanCode) {
+      console.log('[App] Restoring room session for', cleanCode, savedSession);
       if (savedSession.isHost) {
-        this.openHostRoomModal(savedSession.roomId);
+        this.openHostRoomModal(cleanCode);
       } else {
-        this.joinOnlineRoom(savedSession.roomId, savedSession.role === 'spectator', savedSession.seatIndex);
+        this.joinOnlineRoom(cleanCode, savedSession.role === 'spectator', savedSession.seatIndex);
       }
       return;
     }
 
-    if (roomParam) {
-      const cleanCode = roomParam.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-      this.closeModal('modal-welcome');
-      this.openModal('modal-join-room');
-      if (this.inputJoinCode) this.inputJoinCode.value = cleanCode;
-      if (this.joinStatusMessage) this.joinStatusMessage.textContent = 'Room link detected! Click Join as Player or Spectator.';
-    }
+    // 4. Otherwise, user entered or clicked a new room link
+    this.closeModal('modal-welcome');
+    this.openModal('modal-join-room');
+    if (this.inputJoinCode) this.inputJoinCode.value = cleanCode;
+    if (this.joinStatusMessage) this.joinStatusMessage.textContent = `Room ${cleanCode} detected! Click Join as Player or Spectator.`;
   }
 
   async promptMediaAccess() {
