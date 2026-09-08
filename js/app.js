@@ -191,6 +191,7 @@ class FamilyCardArcadeApp {
     this.draftCardContainer = document.getElementById('draft-card-container');
     this.draftActionButtons = document.getElementById('draft-action-buttons');
     this.draftWaitingMessage = document.getElementById('draft-waiting-message');
+    this.draftWaitingText = document.getElementById('draft-waiting-text');
     this.btnDraftKeep = document.getElementById('btn-draft-keep');
     this.btnDraftDiscard = document.getElementById('btn-draft-discard');
 
@@ -1566,11 +1567,19 @@ class FamilyCardArcadeApp {
       if (state.phase === 'DRAFTING' && state.currentDrawnCard) {
         this.draftSpotlight.style.display = 'flex';
         const isMyDraft = (state.activeDraftPlayer === this.localPlayerId && !this.isSpectator);
+        const draftingPlayer = state.players ? state.players[state.activeDraftPlayer] : null;
+        const draftingPlayerName = draftingPlayer ? (draftingPlayer.name || `Player ${state.activeDraftPlayer + 1}`) : 'Opponent';
+
         if (this.draftCardContainer) {
-          this.draftCardContainer.innerHTML = createCardHTML(state.currentDrawnCard, false, this.currentTheme);
+          // Only the drafting player sees the card face-up. Opponents/spectators see it face-down.
+          this.draftCardContainer.innerHTML = createCardHTML(state.currentDrawnCard, !isMyDraft, this.currentTheme);
+        }
+        if (this.draftPrompt) {
+          this.draftPrompt.textContent = isMyDraft ? 'DRAFT TURN: KEEP OR DISCARD?' : `${draftingPlayerName.toUpperCase()}'S DRAFT TURN`;
         }
         if (this.draftActionButtons) this.draftActionButtons.style.display = isMyDraft ? 'flex' : 'none';
         if (this.draftWaitingMessage) this.draftWaitingMessage.style.display = isMyDraft ? 'none' : 'flex';
+        if (this.draftWaitingText) this.draftWaitingText.textContent = `${draftingPlayerName} is deciding...`;
       } else {
         this.draftSpotlight.style.display = 'none';
       }

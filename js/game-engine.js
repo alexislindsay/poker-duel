@@ -454,7 +454,7 @@ class GameEngine {
       // After card is kept, trigger a CARD_BETTING round
       this.phase = GAME_PHASES.CARD_BETTING;
       this.resetRoundBets();
-      this.activeTurnPlayer = (this.dealerIndex + 1) % this.players.length;
+      this.activeTurnPlayer = playerId; // Drafting player who kept card acts first
       this.notifyState();
       return true;
     } else {
