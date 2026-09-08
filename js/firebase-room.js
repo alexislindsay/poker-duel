@@ -47,16 +47,30 @@ class FirebaseRoomManager {
         return;
       }
       if (!firebase.apps.length) {
+        // Resolve database URL (checking custom override if set)
+        const customDbUrl = localStorage.getItem('card_arcadia_firebase_rtdb_url') || 
+                            new URLSearchParams(window.location.search).get('rtdb_url');
+        const dbUrl = customDbUrl || "https://card-arcadia-default-rtdb.firebaseio.com";
+
         firebase.initializeApp({
           projectId: "card-arcadia",
-          databaseURL: "https://card-arcadia-default-rtdb.firebaseio.com"
+          databaseURL: dbUrl
         });
+        console.log(`[Firebase] Initialized with databaseURL: ${dbUrl}`);
       }
       this.db = firebase.database();
-      console.log('[Firebase] Realtime Database initialized successfully.');
+      console.log('[Firebase] Realtime Database ready.');
     } catch (err) {
       console.error('[Firebase] Init error:', err);
     }
+  }
+
+  // Promise timeout helper
+  withTimeout(promise, ms = 6000, errorMsg = 'Database operation timed out') {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error(errorMsg)), ms))
+    ]);
   }
 
   ensureDb() {
@@ -122,7 +136,11 @@ class FirebaseRoomManager {
     };
 
     this.onStatus('⏳ Setting up room on cloud...');
-    await this.roomRef.set(roomData);
+    await this.withTimeout(
+      this.roomRef.set(roomData),
+      6000,
+      'Could not reach database. Please verify Realtime Database is enabled in Firebase Console.'
+    );
 
     this.setupPresence(this.mySeatIndex);
     this.subscribeToRoom();
@@ -141,8 +159,12 @@ class FirebaseRoomManager {
 
     this.onStatus('⏳ Connecting to room...');
 
-    // Verify room exists
-    const snap = await this.roomRef.child('meta').once('value');
+    // Verify room exists with timeout
+    const snap = await this.withTimeout(
+      this.roomRef.child('meta').once('value'),
+      6000,
+      'Could not reach cloud room. Check connection.'
+    );
     if (!snap.exists()) {
       throw new Error(`Room ${this.roomCode} does not exist.`);
     }
