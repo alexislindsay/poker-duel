@@ -287,6 +287,26 @@ class CrazyEightsEngine {
     };
   }
 
+  restoreStateSnapshot(snapshot) {
+    if (!snapshot) return;
+    this.phase = snapshot.phase || CRAZY_EIGHTS_PHASES.NOT_STARTED;
+    this.activePlayerId = snapshot.activePlayerId !== undefined ? snapshot.activePlayerId : 0;
+    this.declaredSuit = snapshot.declaredSuit || null;
+    this.winner = snapshot.winner || null;
+    this.lastAction = snapshot.lastAction || null;
+
+    if (Array.isArray(snapshot.players)) {
+      this.numPlayers = snapshot.players.length;
+      this.players = snapshot.players.map(p => ({
+        id: p.id,
+        name: p.name,
+        avatar: p.avatar,
+        isAi: !!p.isAi,
+        hand: p.hand || []
+      }));
+    }
+  }
+
   notifyState() {
     this.onStateChange(this.getStateSnapshot());
   }

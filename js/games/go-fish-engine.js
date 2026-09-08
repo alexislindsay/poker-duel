@@ -271,6 +271,26 @@ class GoFishEngine {
     return false;
   }
 
+  restoreStateSnapshot(snapshot) {
+    if (!snapshot) return;
+    this.phase = snapshot.phase || GO_FISH_PHASES.NOT_STARTED;
+    this.activePlayerId = snapshot.activePlayerId !== undefined ? snapshot.activePlayerId : (snapshot.activeTurnPlayer !== undefined ? snapshot.activeTurnPlayer : 0);
+    this.currentAskRank = snapshot.currentAskRank || null;
+    this.lastAction = snapshot.lastAction || null;
+    this.winner = snapshot.winner || null;
+    this.revealedCards = snapshot.revealedCards || [];
+
+    if (Array.isArray(snapshot.players)) {
+      this.players = snapshot.players.map(p => ({
+        id: p.id,
+        name: p.name,
+        hand: p.hand || [],
+        books: p.books || [],
+        penaltyCount: p.penaltyCount || 0
+      }));
+    }
+  }
+
   notifyState() {
     this.onStateChange(this.getStateSnapshot());
   }

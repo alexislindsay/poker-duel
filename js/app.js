@@ -150,7 +150,7 @@ class FamilyCardArcadeApp {
   }
 
   getCurrentState() {
-    if (this.mode === 'ONLINE' && !this.isHost && this.latestRemoteState) {
+    if (this.mode === 'ONLINE' && this.latestRemoteState) {
       return this.latestRemoteState;
     }
     return this.getCurrentEngine().getStateSnapshot();
@@ -469,7 +469,9 @@ class FamilyCardArcadeApp {
         this.closeModal('modal-host-room');
 
         // Configure multiplayer human players across engines
-        const roster = this.network ? this.network.getRoster() : [];
+        const roster = (this.firebaseRoom && this.firebaseRoom.roster && this.firebaseRoom.roster.length > 0)
+          ? this.firebaseRoom.roster
+          : (this.network ? this.network.getRoster() : []);
         if (this.pokerEngine && this.pokerEngine.configureMultiplayerPlayers) {
           this.pokerEngine.configureMultiplayerPlayers(roster);
         }
@@ -703,7 +705,14 @@ class FamilyCardArcadeApp {
         const gameState = roomData.gameState;
 
         if (meta.gameType) this.switchGame(meta.gameType);
-        if (gameState) this.latestRemoteState = gameState;
+        if (gameState) {
+          this.latestRemoteState = gameState;
+          try {
+            this.getCurrentEngine().restoreStateSnapshot(gameState);
+          } catch (e) {
+            console.warn('[App] Engine snapshot restore notice:', e);
+          }
+        }
 
         if (meta.status === 'in_game' || (gameState && gameState.phase && gameState.phase !== 'LOBBY')) {
           this.isGameActive = true;
@@ -979,6 +988,12 @@ class FamilyCardArcadeApp {
     if (!state) return;
     this.latestRemoteState = state;
     
+    try {
+      this.getCurrentEngine().restoreStateSnapshot(state);
+    } catch (e) {
+      console.warn('[App] State sync snapshot notice:', e);
+    }
+
     // Auto-enter game if active round in cloud
     if (state.phase && state.phase !== 'LOBBY' && !this.isGameActive) {
       this.isGameActive = true;
@@ -1007,6 +1022,42 @@ class FamilyCardArcadeApp {
 
   onFirebaseActionReceived(action) {
     console.log('[App Firebase Action]', action);
+    if (this.isHost && action) {
+      this.handleRemoteActionRequest(action);
+    }
+  }
+
+  handleRemoteActionRequest(data) {
+    if (!data) return;
+    const { game, action, playerId, amount, decision, cardId, wildSuit, bid, rank } = data;
+    
+    if (game === 'POKER_DUEL' || this.activeGame === GAME_TYPES.POKER_DUEL) {
+      if (action === 'draft') {
+        this.pokerEngine.handleDraftDecision(playerId, decision);
+      } else {
+        this.pokerEngine.handleBetAction(playerId, action, amount || 0);
+      }
+    } else if (game === 'CRAZY_EIGHTS' || this.activeGame === GAME_TYPES.CRAZY_EIGHTS) {
+      if (action === 'play') {
+        this.crazy8Engine.playCard(playerId, cardId, wildSuit);
+      } else if (action === 'draw') {
+        this.crazy8Engine.drawCard(playerId);
+      }
+    } else if (game === 'SPADES' || this.activeGame === GAME_TYPES.SPADES) {
+      if (action === 'bid') {
+        this.spadesEngine.submitBid(playerId, bid);
+      } else if (action === 'play') {
+        this.spadesEngine.playTrickCard(playerId, cardId);
+      } else if (action === 'draft') {
+        this.spadesEngine.handleDraftDecision(playerId, decision);
+      }
+    } else if (game === 'GO_FISH' || this.activeGame === GAME_TYPES.GO_FISH) {
+      if (action === 'ask') {
+        this.goFishEngine.askRank(playerId, rank);
+      } else if (action === 'respond') {
+        this.goFishEngine.respondToAsk(playerId, decision);
+      }
+    }
   }
 
   onNetworkConnected(info) {
@@ -1266,13 +1317,23 @@ class FamilyCardArcadeApp {
   handleLocalPokerAction(action, amount = 0) {
     if (this.isSpectator) return;
     if (this.mode === 'ONLINE' && !this.isHost) {
-      this.network.send({
-        type: 'ACTION_REQUEST',
-        game: 'POKER_DUEL',
-        action,
-        amount,
-        playerId: this.localPlayerId
-      });
+      if (this.firebaseRoom && this.firebaseRoom.roomCode) {
+        this.firebaseRoom.submitAction({
+          game: 'POKER_DUEL',
+          action,
+          amount,
+          playerId: this.localPlayerId
+        });
+      }
+      if (this.network) {
+        this.network.send({
+          type: 'ACTION_REQUEST',
+          game: 'POKER_DUEL',
+          action,
+          amount,
+          playerId: this.localPlayerId
+        });
+      }
       return;
     }
     this.pokerEngine.handleBetAction(this.localPlayerId, action, amount);
@@ -1281,16 +1342,77 @@ class FamilyCardArcadeApp {
   handleLocalDraftDecision(decision) {
     if (this.isSpectator) return;
     if (this.mode === 'ONLINE' && !this.isHost) {
-      this.network.send({
-        type: 'ACTION_REQUEST',
-        game: 'POKER_DUEL',
-        action: 'draft',
-        decision,
-        playerId: this.localPlayerId
-      });
+      if (this.firebaseRoom && this.firebaseRoom.roomCode) {
+        this.firebaseRoom.submitAction({
+          game: 'POKER_DUEL',
+          action: 'draft',
+          decision,
+          playerId: this.localPlayerId
+        });
+      }
+      if (this.network) {
+        this.network.send({
+          type: 'ACTION_REQUEST',
+          game: 'POKER_DUEL',
+          action: 'draft',
+          decision,
+          playerId: this.localPlayerId
+        });
+      }
       return;
     }
     this.pokerEngine.handleDraftDecision(this.localPlayerId, decision);
+  }
+
+  handleLocalCrazy8Action(action, cardId = null, wildSuit = null) {
+    if (this.isSpectator) return;
+    if (this.mode === 'ONLINE' && !this.isHost) {
+      const payload = {
+        game: 'CRAZY_EIGHTS',
+        action,
+        cardId,
+        wildSuit,
+        playerId: this.localPlayerId
+      };
+      if (this.firebaseRoom && this.firebaseRoom.roomCode) {
+        this.firebaseRoom.submitAction(payload);
+      }
+      if (this.network) {
+        this.network.send({ type: 'ACTION_REQUEST', ...payload });
+      }
+      return;
+    }
+    if (action === 'play') {
+      this.crazy8Engine.playCard(this.localPlayerId, cardId, wildSuit);
+    } else if (action === 'draw') {
+      this.crazy8Engine.drawCard(this.localPlayerId);
+    }
+  }
+
+  handleLocalSpadesAction(action, param = null) {
+    if (this.isSpectator) return;
+    if (this.mode === 'ONLINE' && !this.isHost) {
+      const payload = {
+        game: 'SPADES',
+        action,
+        playerId: this.localPlayerId,
+        bid: (action === 'bid') ? param : undefined,
+        cardId: (action === 'play') ? param : undefined,
+        decision: (action === 'draft') ? param : undefined
+      };
+      if (this.firebaseRoom && this.firebaseRoom.roomCode) {
+        this.firebaseRoom.submitAction(payload);
+      }
+      if (this.network) {
+        this.network.send({ type: 'ACTION_REQUEST', ...payload });
+      }
+      return;
+    }
+    if (action === 'bid') {
+      this.spadesEngine.submitBid(this.localPlayerId, param);
+    } else if (action === 'play') {
+      this.spadesEngine.playTrickCard(this.localPlayerId, param);
+    }
   }
 
   render() {
@@ -1490,7 +1612,7 @@ class FamilyCardArcadeApp {
     if (stockEl) {
       stockEl.addEventListener('click', () => {
         if (state.activePlayerId === this.localPlayerId && !this.isSpectator) {
-          this.crazy8Engine.drawCard(this.localPlayerId);
+          this.handleLocalCrazy8Action('draw');
         }
       });
     }
@@ -1537,7 +1659,7 @@ class FamilyCardArcadeApp {
           cardsEl.querySelectorAll('.poker-card-wrapper').forEach(wrapper => {
             wrapper.addEventListener('click', () => {
               const cardId = wrapper.dataset.cardId;
-              if (cardId) this.crazy8Engine.playCard(this.localPlayerId, cardId);
+              if (cardId) this.handleLocalCrazy8Action('play', cardId);
             });
           });
         }
@@ -1615,7 +1737,7 @@ class FamilyCardArcadeApp {
           cardsEl.querySelectorAll('.poker-card-wrapper').forEach(wrapper => {
             wrapper.addEventListener('click', () => {
               const cardId = wrapper.dataset.cardId;
-              if (cardId) this.spadesEngine.playTrickCard(this.localPlayerId, cardId);
+              if (cardId) this.handleLocalSpadesAction('play', cardId);
             });
           });
         }
@@ -1633,7 +1755,7 @@ class FamilyCardArcadeApp {
         bidContainer.querySelectorAll('.btn-spades-bid').forEach(b => {
           b.addEventListener('click', () => {
             const bid = parseInt(b.dataset.bid, 10);
-            this.spadesEngine.submitBid(this.localPlayerId, bid);
+            this.handleLocalSpadesAction('bid', bid);
             this.closeModal('modal-spades-bid');
           });
         });

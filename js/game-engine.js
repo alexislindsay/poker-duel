@@ -577,6 +577,42 @@ class GameEngine {
     };
   }
 
+  restoreStateSnapshot(snapshot) {
+    if (!snapshot) return;
+    this.roundNumber = snapshot.roundNumber || 0;
+    this.blindLevelIndex = snapshot.blindLevelIndex || 0;
+    this.dealerIndex = snapshot.dealerIndex || 0;
+    this.activeTurnPlayer = snapshot.activeTurnPlayer !== undefined ? snapshot.activeTurnPlayer : 0;
+    this.activeDraftPlayer = snapshot.activeDraftPlayer !== undefined ? snapshot.activeDraftPlayer : 0;
+    this.phase = snapshot.phase || GAME_PHASES.LOBBY;
+    this.pot = snapshot.pot || 0;
+    this.currentBet = snapshot.currentBet || 0;
+    this.minRaise = snapshot.minRaise || 0;
+    this.communityCards = snapshot.communityCards || [];
+    this.currentDrawnCard = snapshot.currentDrawnCard || null;
+    this.potWonAmount = snapshot.potWonAmount || 0;
+    this.winReason = snapshot.winReason || '';
+    this.lastAction = snapshot.lastAction || null;
+    this.roundWinner = snapshot.roundWinner || null;
+
+    if (Array.isArray(snapshot.players)) {
+      this.numPlayers = snapshot.players.length;
+      this.players = snapshot.players.map(p => ({
+        id: p.id,
+        name: p.name,
+        avatar: p.avatar,
+        isAi: !!p.isAi,
+        chips: p.chips,
+        holeCards: p.holeCards || [],
+        currentRoundBet: p.currentRoundBet || 0,
+        totalHandBet: p.totalHandBet || 0,
+        folded: !!p.folded,
+        isAllIn: !!p.isAllIn,
+        handEval: p.handEval || null
+      }));
+    }
+  }
+
   notifyState() {
     this.onStateChange(this.getStateSnapshot());
   }

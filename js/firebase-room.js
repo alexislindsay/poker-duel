@@ -18,6 +18,7 @@ class FirebaseRoomManager {
     this.onActionReceived = options.onActionReceived || (() => {});
 
     this.listeners = [];
+    this.roster = [];
     this.isAttached = false;
     this.initFirebase();
   }
@@ -298,6 +299,7 @@ class FirebaseRoomManager {
     const seatsListener = this.roomRef.child('seats').on('value', (snap) => {
       const seats = snap.val() || {};
       const roster = Object.values(seats).filter(s => s && s.status !== 'vacant');
+      this.roster = roster;
       this.onRosterChange(roster);
 
       // Check if another human player left
