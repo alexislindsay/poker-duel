@@ -721,15 +721,20 @@ class FamilyCardArcadeApp {
       this.openModal('modal-host-room');
       if (this.hostStatusMessage) this.hostStatusMessage.textContent = '⏳ Creating cloud room...';
 
-      // 1. Create Room in Firebase RTDB
+      // 1. Create Room in Firebase RTDB (with P2P fallback)
       let code = customCode;
       if (this.firebaseRoom) {
-        code = await this.firebaseRoom.createRoom(customCode, {
-          seatCount: this.seatCount,
-          gameType: this.activeGame,
-          name: 'Player 1',
-          initialGameState: this.getCurrentState()
-        });
+        try {
+          code = await this.firebaseRoom.createRoom(customCode, {
+            seatCount: this.seatCount,
+            gameType: this.activeGame,
+            name: 'Player 1',
+            initialGameState: this.getCurrentState()
+          });
+        } catch (fbErr) {
+          console.warn('[Firebase Room] Cloud setup notice, continuing with direct P2P:', fbErr);
+          code = await this.network.createRoom(customCode, 'Player 1');
+        }
       } else {
         code = await this.network.createRoom(customCode, 'Player 1');
       }
@@ -770,13 +775,19 @@ class FamilyCardArcadeApp {
     try {
       this.closeModal('modal-welcome');
       this.openModal('modal-join-room');
-      if (this.joinStatusMessage) this.joinStatusMessage.textContent = asSpectator ? 'Joining as spectator...' : 'Connecting to cloud room...';
+      if (this.joinStatusMessage) this.joinStatusMessage.textContent = asSpectator ? 'Joining as spectator...' : 'Connecting to room...';
 
       let roomId = code;
-      // 1. Join Room in Firebase RTDB
+      // 1. Join Room in Firebase RTDB (with P2P fallback)
       if (this.firebaseRoom) {
-        roomId = await this.firebaseRoom.joinRoom(code, asSpectator ? 'Spectator' : 'Player 2', asSpectator, preferredSeat);
-        this.localPlayerId = this.firebaseRoom.mySeatIndex !== null ? this.firebaseRoom.mySeatIndex : 1;
+        try {
+          roomId = await this.firebaseRoom.joinRoom(code, asSpectator ? 'Spectator' : 'Player 2', asSpectator, preferredSeat);
+          this.localPlayerId = this.firebaseRoom.mySeatIndex !== null ? this.firebaseRoom.mySeatIndex : 1;
+        } catch (fbErr) {
+          console.warn('[Firebase Room] Cloud join notice, continuing with direct P2P:', fbErr);
+          roomId = await this.network.joinRoom(code, asSpectator ? 'Spectator' : 'Player 2', asSpectator, preferredSeat);
+          this.localPlayerId = this.network.mySeatIndex !== null ? this.network.mySeatIndex : 1;
+        }
       } else {
         roomId = await this.network.joinRoom(code, asSpectator ? 'Spectator' : 'Player 2', asSpectator, preferredSeat);
         this.localPlayerId = this.network.mySeatIndex !== null ? this.network.mySeatIndex : 1;
