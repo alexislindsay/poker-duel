@@ -53,8 +53,9 @@ class CrazyEightsEngine {
     const defaultMultiplayerAvatars = ['🤠', '👩‍💼', '🧑‍💻', '😎'];
 
     const activePlayers = (roster || []).filter(r => r.role === 'player' && r.seatIndex !== null);
-    if (activePlayers.length > this.numPlayers) {
-      this.setPlayerCount(activePlayers.length);
+    const targetCount = Math.max(2, Math.min(4, activePlayers.length || this.numPlayers));
+    if (this.numPlayers !== targetCount) {
+      this.setPlayerCount(targetCount);
     }
 
     this.players.forEach((p, idx) => {
