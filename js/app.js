@@ -342,10 +342,8 @@ class FamilyCardArcadeApp {
     // Menu / Game Selection
     if (this.btnMainMenu) {
       this.btnMainMenu.addEventListener('click', () => {
-        sessionStorage.removeItem('card_arcadia_room_session');
-        window.history.replaceState({}, '', window.location.pathname);
         if (typeof SoundFX !== 'undefined') SoundFX.play('button');
-        this.openModal('modal-welcome');
+        this.leaveRoom();
       });
     }
 
@@ -644,7 +642,6 @@ class FamilyCardArcadeApp {
     // 1. If user navigated to bare URL without ?room=, reset stale session and show Welcome screen
     if (!roomParam) {
       sessionStorage.removeItem('card_arcadia_room_session');
-      document.documentElement.classList.remove('has-active-room');
       this.closeModal('modal-host-room');
       this.closeModal('modal-join-room');
       this.closeModal('modal-player-left');
@@ -653,12 +650,11 @@ class FamilyCardArcadeApp {
       return;
     }
 
-    // Synchronously close welcome modal to prevent flash on reload
-    this.closeModal('modal-welcome');
-    document.documentElement.classList.add('has-active-room');
-
     const cleanCode = roomParam.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (!cleanCode) return;
+    if (!cleanCode) {
+      this.openModal('modal-welcome');
+      return;
+    }
 
     // 2. Check saved session in sessionStorage for this specific room code
     let savedSession = null;
