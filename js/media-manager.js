@@ -100,14 +100,24 @@ class MediaManager {
           if (call && call.peerConnection) {
             try {
               const senders = call.peerConnection.getSenders();
+              let hasVideoSender = false;
+              let hasAudioSender = false;
               senders.forEach(sender => {
                 if (sender.track && sender.track.kind === 'video' && videoTrack) {
+                  hasVideoSender = true;
                   sender.replaceTrack(videoTrack).catch(e => console.warn('[AV] replaceTrack video notice:', e));
                 }
                 if (sender.track && sender.track.kind === 'audio' && audioTrack) {
+                  hasAudioSender = true;
                   sender.replaceTrack(audioTrack).catch(e => console.warn('[AV] replaceTrack audio notice:', e));
                 }
               });
+              if (!hasAudioSender && audioTrack) {
+                try { call.peerConnection.addTrack(audioTrack, this.localStream); } catch (e) {}
+              }
+              if (!hasVideoSender && videoTrack) {
+                try { call.peerConnection.addTrack(videoTrack, this.localStream); } catch (e) {}
+              }
             } catch (e) {
               console.warn('[AV] Track replacement notice:', e);
             }
@@ -454,7 +464,27 @@ class MediaManager {
       canvas.height = 16;
       const ctx = canvas.getContext('2d');
       ctx.fillRect(0, 0, 16, 16);
-      return canvas.captureStream(1);
+      const stream = canvas.captureStream(1);
+
+      // Add a silent audio track so WebRTC SDP negotiates both audio and video transceivers
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        try {
+          const audioCtx = new AudioCtx();
+          const osc = audioCtx.createOscillator();
+          const dst = audioCtx.createMediaStreamDestination();
+          const gain = audioCtx.createGain();
+          gain.gain.value = 0; // Silent
+          osc.connect(gain);
+          gain.connect(dst);
+          osc.start();
+          const audioTrack = dst.stream.getAudioTracks()[0];
+          if (audioTrack) stream.addTrack(audioTrack);
+        } catch (audioErr) {
+          console.warn('[AV] Synthetic audio track notice:', audioErr);
+        }
+      }
+      return stream;
     } catch (e) {
       return new MediaStream();
     }
@@ -467,6 +497,16 @@ class MediaManager {
         audioEl.muted = false;
         audioEl.volume = 1.0;
         audioEl.play().catch(e => console.warn(`[AV] Audio play notice for ${peerId}:`, e));
+      }
+    });
+
+    // Also resume remote video audio playback for seats 1..3
+    [1, 2, 3].forEach(seat => {
+      const videoEl = document.getElementById(`player-video-${seat}`);
+      if (videoEl && videoEl.srcObject) {
+        videoEl.muted = false;
+        videoEl.volume = 1.0;
+        videoEl.play().catch(e => {});
       }
     });
   }
