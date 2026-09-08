@@ -161,12 +161,25 @@ class NetworkManager {
 
   // Join an existing room (as player or spectator) with auto-retry
   joinRoom(roomCode, playerName = 'Guest', asSpectator = false, preferredSeat = null, retryCount = 0) {
+    if (retryCount === 0) {
+      this.currentJoinAttempt = (this.currentJoinAttempt || 0) + 1;
+      if (this.joinRetryTimer) {
+        clearTimeout(this.joinRetryTimer);
+        this.joinRetryTimer = null;
+      }
+    }
+    const attemptId = this.currentJoinAttempt;
+
     return new Promise((resolve, reject) => {
       this.isHost = false;
+      this.roomId = (roomCode || '').toUpperCase().trim().replace(/[^A-Z0-9]/g, '');
       this.localName = playerName;
       this.myRole = asSpectator ? 'spectator' : 'player';
-      this.roomId = (roomCode || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      this.mySeatIndex = (preferredSeat !== null && preferredSeat !== undefined) ? preferredSeat : 1;
+      this.explicitlyDisconnected = false;
+
       const hostPeerId = `${this.getPrefix()}${this.roomId}`;
+      this.onStatus(`Connecting to room ${this.roomId}...`);
 
       try {
         if (typeof Peer === 'undefined') {
@@ -182,7 +195,7 @@ class NetworkManager {
         const maxRetries = 6;
 
         const attemptRetry = (err) => {
-          if (isResolved) return;
+          if (isResolved || this.currentJoinAttempt !== attemptId || this.explicitlyDisconnected) return;
           isResolved = true;
           if (this.peer && !this.peer.destroyed) {
             try { this.peer.destroy(); } catch (e) {}
@@ -193,7 +206,9 @@ class NetworkManager {
             const msg = `Host is connecting or room is starting up. Retrying (${retryCount + 1}/${maxRetries})...`;
             console.log(`[P2P] ${msg}`);
             this.onStatus(msg);
-            setTimeout(() => {
+            this.joinRetryTimer = setTimeout(() => {
+              this.joinRetryTimer = null;
+              if (this.currentJoinAttempt !== attemptId || this.explicitlyDisconnected) return;
               this.joinRoom(roomCode, playerName, asSpectator, preferredSeat, retryCount + 1)
                 .then(resolve)
                 .catch(reject);
@@ -206,7 +221,7 @@ class NetworkManager {
         };
 
         const timeoutTimer = setTimeout(() => {
-          if (!isResolved) {
+          if (!isResolved && this.currentJoinAttempt === attemptId && !this.explicitlyDisconnected) {
             console.warn('[P2P Guest] Connection attempt timed out, retrying...');
             attemptRetry(new Error('Connection timed out'));
           }
@@ -539,6 +554,11 @@ class NetworkManager {
 
   disconnect() {
     this.explicitlyDisconnected = true;
+    this.currentJoinAttempt = (this.currentJoinAttempt || 0) + 1;
+    if (this.joinRetryTimer) {
+      clearTimeout(this.joinRetryTimer);
+      this.joinRetryTimer = null;
+    }
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
