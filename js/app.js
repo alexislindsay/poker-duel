@@ -896,12 +896,16 @@ class FamilyCardArcadeApp {
       if (this.joinStatusMessage) this.joinStatusMessage.textContent = asSpectator ? 'Joining as spectator...' : 'Connecting to room...';
 
       let roomId = code;
-      // 1. Join Room in Firebase RTDB (with P2P fallback)
+      // 1. Join Room in Firebase RTDB (with P2P fallback only for network unreachable)
       if (this.firebaseRoom) {
         try {
           roomId = await this.firebaseRoom.joinRoom(code, asSpectator ? 'Spectator' : 'Player 2', asSpectator, preferredSeat);
           this.localPlayerId = this.firebaseRoom.mySeatIndex !== null ? this.firebaseRoom.mySeatIndex : 1;
         } catch (fbErr) {
+          const errMsg = fbErr.message || '';
+          if (errMsg.includes('does not exist') || errMsg.includes('full') || errMsg.includes('secure a seat')) {
+            throw fbErr;
+          }
           console.warn('[Firebase Room] Cloud join notice, continuing with direct P2P:', fbErr);
           roomId = await this.network.joinRoom(code, asSpectator ? 'Spectator' : 'Player 2', asSpectator, preferredSeat);
           this.localPlayerId = this.network.mySeatIndex !== null ? this.network.mySeatIndex : 1;
