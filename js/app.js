@@ -18,6 +18,7 @@ class FamilyCardArcadeApp {
     this.isGameActive = false;
     this.latestRemoteState = null;
     this.pendingCrazy8CardId = null;
+    this.pendingLeftPlayerSeat = null;
 
     // Initialize Card Theme
     this.currentTheme = localStorage.getItem('poker_duel_deck_theme') || 'family_food';
@@ -39,7 +40,17 @@ class FamilyCardArcadeApp {
       onError: (err) => this.showToast(`Camera/Mic notice: ${err.message || 'Permission needed'}`)
     });
 
-    // Networking
+    // Firebase Realtime Database Room Manager
+    this.firebaseRoom = new FirebaseRoomManager({
+      onStateChange: (state) => this.onFirebaseStateChange(state),
+      onRosterChange: (roster) => this.onFirebaseRosterChange(roster),
+      onPlayerLeft: (info) => this.onFirebasePlayerLeft(info),
+      onActionReceived: (action) => this.onFirebaseActionReceived(action),
+      onStatus: (status) => this.onNetworkStatus(status),
+      onError: (err) => this.onNetworkError(err)
+    });
+
+    // P2P / AV Signaling Networking
     this.network = new NetworkManager({
       onConnected: (info) => this.onNetworkConnected(info),
       onDisconnected: (peerId) => this.onNetworkDisconnected(peerId),
@@ -232,6 +243,13 @@ class FamilyCardArcadeApp {
     this.gameOverDesc = document.getElementById('game-over-desc');
     this.btnRematch = document.getElementById('btn-rematch');
     this.btnGameOverMenu = document.getElementById('btn-game-over-menu');
+
+    // Player Left Elements
+    this.modalPlayerLeft = document.getElementById('modal-player-left');
+    this.playerLeftTitle = document.getElementById('player-left-title');
+    this.playerLeftDesc = document.getElementById('player-left-desc');
+    this.btnReplaceAi = document.getElementById('btn-replace-ai');
+    this.btnPlayerLeftLeave = document.getElementById('btn-player-left-leave');
   }
 
   bindEvents() {
@@ -374,6 +392,35 @@ class FamilyCardArcadeApp {
 
     if (this.btnLeaveRoom) {
       this.btnLeaveRoom.addEventListener('click', () => {
+        this.leaveRoom();
+      });
+    }
+
+    // Player Left / AI Replacement Buttons
+    if (this.btnReplaceAi) {
+      this.btnReplaceAi.addEventListener('click', async () => {
+        if (this.pendingLeftPlayerSeat !== null && this.pendingLeftPlayerSeat !== undefined) {
+          const seat = this.pendingLeftPlayerSeat;
+          this.pendingLeftPlayerSeat = null;
+          this.closeModal('modal-player-left');
+          
+          if (this.firebaseRoom) {
+            await this.firebaseRoom.replacePlayerWithAi(seat, 'DadBot');
+          }
+          this.showToast('🤖 AI Bot has stepped in to continue the game!');
+          
+          const state = this.getCurrentState();
+          if (state && state.activeTurnPlayer === seat) {
+            this.triggerAiTurnIfNeeded(state);
+          }
+        }
+      });
+    }
+
+    if (this.btnPlayerLeftLeave) {
+      this.btnPlayerLeftLeave.addEventListener('click', () => {
+        this.pendingLeftPlayerSeat = null;
+        this.closeModal('modal-player-left');
         this.leaveRoom();
       });
     }
@@ -651,7 +698,7 @@ class FamilyCardArcadeApp {
      MULTIPLAYER NETWORKING & ROOMS
      ========================================================================= */
   updateRoomBadge(roomCode) {
-    const code = roomCode || (this.network ? this.network.roomId : null);
+    const code = roomCode || (this.firebaseRoom ? this.firebaseRoom.roomCode : null) || (this.network ? this.network.roomId : null);
     if (code && code !== 'null' && code !== 'undefined' && code !== '------') {
       if (this.roomBadge) this.roomBadge.style.display = 'flex';
       if (this.roomBadgeText) this.roomBadgeText.innerHTML = `Room: <strong>${code}</strong>`;
@@ -672,13 +719,33 @@ class FamilyCardArcadeApp {
       this.closeModal('modal-welcome');
       this.closeModal('modal-join-room');
       this.openModal('modal-host-room');
-      if (this.hostStatusMessage) this.hostStatusMessage.textContent = '⏳ Creating room code...';
+      if (this.hostStatusMessage) this.hostStatusMessage.textContent = '⏳ Creating cloud room...';
 
-      const code = await this.network.createRoom(customCode, 'Player 1 (Host)');
+      // 1. Create Room in Firebase RTDB
+      let code = customCode;
+      if (this.firebaseRoom) {
+        code = await this.firebaseRoom.createRoom(customCode, {
+          seatCount: this.seatCount,
+          gameType: this.activeGame,
+          name: 'Player 1',
+          initialGameState: this.getCurrentState()
+        });
+      } else {
+        code = await this.network.createRoom(customCode, 'Player 1');
+      }
+
       if (this.displayRoomCode) this.displayRoomCode.textContent = code;
       this.updateRoomBadge(code);
       if (this.btnShareRoom) this.btnShareRoom.style.display = 'flex';
       if (this.hostStatusMessage) this.hostStatusMessage.textContent = '⏳ Waiting for other player(s) to join...';
+
+      // 2. Initialize P2P Peer for AV Video & Voice Mesh
+      try {
+        await this.network.createRoom(code, 'Player 1');
+        this.media.attachPeer(this.network.peer, 0, false);
+      } catch (peerErr) {
+        console.warn('[AV Peer] Notice:', peerErr);
+      }
 
       // Persist session & update URL
       sessionStorage.setItem('card_arcadia_room_session', JSON.stringify({
@@ -688,12 +755,9 @@ class FamilyCardArcadeApp {
         seatIndex: 0
       }));
       window.history.replaceState({}, '', `?room=${code}`);
-
-      this.media.attachPeer(this.network.peer, 0, false);
-      // Media capture will start when the game is launched with "Start Multiplayer Game"
     } catch (err) {
       console.error('[Host Room Error]', err);
-      if (this.hostStatusMessage) this.hostStatusMessage.textContent = '⚠️ Could not reach signaling server. Please retry.';
+      if (this.hostStatusMessage) this.hostStatusMessage.textContent = `⚠️ Error: ${err.message || 'Check connection'}`;
       this.showToast(`Error creating room: ${err.message || 'Check connection'}`);
     }
   }
@@ -704,14 +768,31 @@ class FamilyCardArcadeApp {
     this.isSpectator = asSpectator;
 
     try {
-      if (this.joinStatusMessage) this.joinStatusMessage.textContent = asSpectator ? 'Joining as spectator...' : 'Connecting to host...';
-      const roomId = await this.network.joinRoom(code, asSpectator ? 'Spectator' : 'Player 2', asSpectator, preferredSeat);
+      this.closeModal('modal-welcome');
+      this.openModal('modal-join-room');
+      if (this.joinStatusMessage) this.joinStatusMessage.textContent = asSpectator ? 'Joining as spectator...' : 'Connecting to cloud room...';
+
+      let roomId = code;
+      // 1. Join Room in Firebase RTDB
+      if (this.firebaseRoom) {
+        roomId = await this.firebaseRoom.joinRoom(code, asSpectator ? 'Spectator' : 'Player 2', asSpectator, preferredSeat);
+        this.localPlayerId = this.firebaseRoom.mySeatIndex !== null ? this.firebaseRoom.mySeatIndex : 1;
+      } else {
+        roomId = await this.network.joinRoom(code, asSpectator ? 'Spectator' : 'Player 2', asSpectator, preferredSeat);
+        this.localPlayerId = this.network.mySeatIndex !== null ? this.network.mySeatIndex : 1;
+      }
       
       this.updateRoomBadge(roomId);
       if (this.spectatorBadge) this.spectatorBadge.style.display = asSpectator ? 'flex' : 'none';
 
-      this.localPlayerId = this.network.mySeatIndex !== null ? this.network.mySeatIndex : 1;
-      
+      // 2. Initialize P2P Peer for AV Video & Voice Mesh
+      try {
+        await this.network.joinRoom(roomId, asSpectator ? 'Spectator' : `Player ${this.localPlayerId + 1}`, asSpectator, this.localPlayerId);
+        this.media.attachPeer(this.network.peer, this.localPlayerId, asSpectator);
+      } catch (peerErr) {
+        console.warn('[AV Peer] Notice:', peerErr);
+      }
+
       // Persist session & update URL
       sessionStorage.setItem('card_arcadia_room_session', JSON.stringify({
         roomId: roomId,
@@ -722,11 +803,12 @@ class FamilyCardArcadeApp {
       window.history.replaceState({}, '', `?room=${roomId}`);
 
       // Transition guest modal to waiting state
-      if (this.joinInputSection) this.joinInputSection.style.display = 'none';
-      if (this.guestWaitingSection) this.guestWaitingSection.style.display = 'block';
-      if (this.guestStatusMessage) this.guestStatusMessage.textContent = '⏳ Waiting for Host to start the game...';
+      if (!this.isGameActive) {
+        if (this.joinInputSection) this.joinInputSection.style.display = 'none';
+        if (this.guestWaitingSection) this.guestWaitingSection.style.display = 'block';
+        if (this.guestStatusMessage) this.guestStatusMessage.textContent = '⏳ Waiting for other player / game start...';
+      }
 
-      this.media.attachPeer(this.network.peer, this.localPlayerId, asSpectator);
       this.showToast(`Connected to room ${roomId}!`);
     } catch (err) {
       console.error('[Join Room Error]', err);
@@ -735,11 +817,14 @@ class FamilyCardArcadeApp {
     }
   }
 
-  leaveRoom() {
+  async leaveRoom() {
     console.log('[App] Leaving room...');
     sessionStorage.removeItem('card_arcadia_room_session');
     window.history.replaceState({}, '', window.location.pathname);
 
+    if (this.firebaseRoom) {
+      await this.firebaseRoom.leaveRoom();
+    }
     if (this.media) {
       this.media.destroy();
     }
@@ -753,6 +838,7 @@ class FamilyCardArcadeApp {
     this.isGameActive = false;
     this.localPlayerId = 0;
     this.latestRemoteState = null;
+    this.pendingLeftPlayerSeat = null;
 
     this.updateRoomBadge(null);
     if (this.spectatorBadge) this.spectatorBadge.style.display = 'none';
@@ -765,14 +851,49 @@ class FamilyCardArcadeApp {
 
     this.closeModal('modal-host-room');
     this.closeModal('modal-join-room');
+    this.closeModal('modal-player-left');
     this.closeModal('modal-game-over');
     this.openModal('modal-welcome');
 
     this.showToast('🚪 Left room. Returned to Main Menu.');
   }
 
+  onFirebaseStateChange(state) {
+    if (!state) return;
+    this.latestRemoteState = state;
+    
+    // Auto-enter game if active round in cloud
+    if (state.phase && state.phase !== 'LOBBY' && !this.isGameActive) {
+      this.isGameActive = true;
+      this.closeModal('modal-join-room');
+      this.closeModal('modal-host-room');
+      this.closeModal('modal-welcome');
+      this.promptMediaAccess();
+    }
+
+    this.render();
+    this.triggerAiTurnIfNeeded(state);
+  }
+
+  onFirebaseRosterChange(roster) {
+    this.onRosterChange(roster);
+  }
+
+  onFirebasePlayerLeft(info) {
+    console.log(`[App] Player at seat ${info.seatIndex} (${info.name}) left.`);
+    this.pendingLeftPlayerSeat = info.seatIndex;
+    if (this.playerLeftDesc) {
+      this.playerLeftDesc.textContent = `${info.name || `Player ${info.seatIndex + 1}`} has left the table. Would you like to replace them with an AI Bot to keep playing, or leave the room?`;
+    }
+    this.openModal('modal-player-left');
+  }
+
+  onFirebaseActionReceived(action) {
+    console.log('[App Firebase Action]', action);
+  }
+
   onNetworkConnected(info) {
-    console.log('[App] Network connected:', info);
+    console.log('[App] AV Network connected:', info);
     if (info && info.roomId) {
       this.updateRoomBadge(info.roomId);
     }
@@ -937,11 +1058,16 @@ class FamilyCardArcadeApp {
 
   onEngineStateChange(gameType, state) {
     if (gameType === this.activeGame) {
-      if (this.mode === 'ONLINE' && this.isHost) {
-        this.network.broadcast({
-          type: 'GAME_STATE_UPDATE',
-          state
-        });
+      if (this.mode === 'ONLINE') {
+        if (this.firebaseRoom && this.firebaseRoom.roomCode) {
+          this.firebaseRoom.updateGameState(state);
+        }
+        if (this.isHost && this.network) {
+          this.network.broadcast({
+            type: 'GAME_STATE_UPDATE',
+            state
+          });
+        }
       }
       this.render();
       this.triggerAiTurnIfNeeded(state);
