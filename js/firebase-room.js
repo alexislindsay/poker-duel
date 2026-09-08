@@ -50,10 +50,12 @@ class FirebaseRoomManager {
         // Resolve database URL (checking custom override if set)
         const customDbUrl = localStorage.getItem('card_arcadia_firebase_rtdb_url') || 
                             new URLSearchParams(window.location.search).get('rtdb_url');
-        const dbUrl = customDbUrl || "https://card-arcadia-default-rtdb.firebaseio.com";
+        const rawDbUrl = customDbUrl || "https://card-arcadia-default-rtdb.firebaseio.com";
+        const dbUrl = rawDbUrl.trim().replace(/[\\\/]+$/, '');
 
         firebase.initializeApp({
           projectId: "card-arcadia",
+          authDomain: "card-arcadia.firebaseapp.com",
           databaseURL: dbUrl
         });
         console.log(`[Firebase] Initialized with databaseURL: ${dbUrl}`);
