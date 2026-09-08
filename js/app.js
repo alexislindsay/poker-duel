@@ -210,6 +210,10 @@ class FamilyCardArcadeApp {
     this.btnJoinSpectator = document.getElementById('btn-join-spectator');
     this.hostStatusMessage = document.getElementById('host-status-message');
     this.joinStatusMessage = document.getElementById('join-status-message');
+    this.joinInputSection = document.getElementById('join-input-section');
+    this.guestWaitingSection = document.getElementById('guest-waiting-section');
+    this.guestRosterList = document.getElementById('guest-roster-list');
+    this.guestStatusMessage = document.getElementById('guest-status-message');
     this.roomRosterList = document.getElementById('room-roster-list');
     this.btnHostStartGame = document.getElementById('btn-host-start-game');
     this.btnLobbyAddBot = document.getElementById('btn-lobby-add-bot');
@@ -430,6 +434,7 @@ class FamilyCardArcadeApp {
             state: this.getCurrentState()
           });
         }
+        this.promptMediaAccess();
         this.showToast('🎮 Multiplayer game started! Cards dealt!');
       });
     }
@@ -678,7 +683,7 @@ class FamilyCardArcadeApp {
       window.history.replaceState({}, '', `?room=${code}`);
 
       this.media.attachPeer(this.network.peer, 0, false);
-      this.promptMediaAccess();
+      // Media capture will start when the game is launched with "Start Multiplayer Game"
     } catch (err) {
       console.error('[Host Room Error]', err);
       if (this.hostStatusMessage) this.hostStatusMessage.textContent = '⚠️ Could not reach signaling server. Please retry.';
@@ -695,8 +700,6 @@ class FamilyCardArcadeApp {
       if (this.joinStatusMessage) this.joinStatusMessage.textContent = asSpectator ? 'Joining as spectator...' : 'Connecting to host...';
       const roomId = await this.network.joinRoom(code, asSpectator ? 'Spectator' : 'Player 2', asSpectator, preferredSeat);
       
-      this.closeModal('modal-join-room');
-      this.closeModal('modal-welcome');
       this.updateRoomBadge(roomId);
       if (this.spectatorBadge) this.spectatorBadge.style.display = asSpectator ? 'flex' : 'none';
 
@@ -711,8 +714,12 @@ class FamilyCardArcadeApp {
       }));
       window.history.replaceState({}, '', `?room=${roomId}`);
 
+      // Transition guest modal to waiting state
+      if (this.joinInputSection) this.joinInputSection.style.display = 'none';
+      if (this.guestWaitingSection) this.guestWaitingSection.style.display = 'block';
+      if (this.guestStatusMessage) this.guestStatusMessage.textContent = '⏳ Waiting for Host to start the game...';
+
       this.media.attachPeer(this.network.peer, this.localPlayerId, asSpectator);
-      this.promptMediaAccess();
       this.showToast(`Connected to room ${roomId}!`);
     } catch (err) {
       console.error('[Join Room Error]', err);
@@ -742,6 +749,11 @@ class FamilyCardArcadeApp {
     this.updateRoomBadge(null);
     if (this.spectatorBadge) this.spectatorBadge.style.display = 'none';
     if (this.btnShareRoom) this.btnShareRoom.style.display = 'none';
+
+    if (this.joinInputSection) this.joinInputSection.style.display = 'block';
+    if (this.guestWaitingSection) this.guestWaitingSection.style.display = 'none';
+    if (this.inputJoinCode) this.inputJoinCode.value = '';
+    if (this.joinStatusMessage) this.joinStatusMessage.textContent = '';
 
     this.closeModal('modal-host-room');
     this.closeModal('modal-join-room');
@@ -780,15 +792,20 @@ class FamilyCardArcadeApp {
 
   onRosterChange(roster) {
     const list = roster || [];
+    const rosterHtml = list.map(p => `
+      <div class="roster-player-item">
+        <span>${p.name}</span>
+        <span class="roster-badge ${p.role === 'spectator' ? 'badge-spectator' : 'badge-seat'}">
+          ${p.role === 'spectator' ? 'Spectator' : `Seat ${p.seatIndex + 1}`}
+        </span>
+      </div>
+    `).join('');
+
     if (this.roomRosterList) {
-      this.roomRosterList.innerHTML = list.map(p => `
-        <div class="roster-player-item">
-          <span>${p.name}</span>
-          <span class="roster-badge ${p.role === 'spectator' ? 'badge-spectator' : 'badge-seat'}">
-            ${p.role === 'spectator' ? 'Spectator' : `Seat ${p.seatIndex + 1}`}
-          </span>
-        </div>
-      `).join('');
+      this.roomRosterList.innerHTML = rosterHtml;
+    }
+    if (this.guestRosterList) {
+      this.guestRosterList.innerHTML = rosterHtml;
     }
 
     list.forEach(p => {
@@ -802,14 +819,20 @@ class FamilyCardArcadeApp {
       if (activeSeats > this.seatCount) {
         this.setSeatCount(activeSeats);
       }
-      if (this.roomStatusMessage) {
-        this.roomStatusMessage.textContent = `✅ Ready (${activeSeats} players connected)`;
+      if (this.hostStatusMessage) {
+        this.hostStatusMessage.textContent = `✅ Ready (${activeSeats} players connected)`;
+      }
+      if (this.guestStatusMessage) {
+        this.guestStatusMessage.textContent = `✅ ${activeSeats} players connected. Waiting for Host to start...`;
       }
       if (this.isHost && this.btnHostStartGame) {
         this.btnHostStartGame.style.display = 'block';
         this.btnHostStartGame.textContent = `▶ START MULTIPLAYER GAME (${activeSeats} Players)`;
       }
     } else {
+      if (this.hostStatusMessage) {
+        this.hostStatusMessage.textContent = '⏳ Waiting for other player(s) to join...';
+      }
       if (this.isHost && this.btnHostStartGame) {
         this.btnHostStartGame.style.display = 'none';
       }
@@ -818,11 +841,13 @@ class FamilyCardArcadeApp {
 
   onNetworkMessage(data, fromPeerId) {
     if (data.type === 'GAME_START_SIGNAL') {
-      this.closeModal('modal-online-room');
+      this.closeModal('modal-join-room');
+      this.closeModal('modal-host-room');
       this.closeModal('modal-welcome');
       if (typeof SoundFX !== 'undefined') SoundFX.play('shuffle');
       if (data.gameType) this.switchGame(data.gameType);
       if (data.state) this.latestRemoteState = data.state;
+      this.promptMediaAccess();
       this.showToast('🎮 Multiplayer duel started! Dealing cards...');
       this.render();
       return;
