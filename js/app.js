@@ -540,12 +540,17 @@ class FamilyCardArcadeApp {
 
     if (this.betSlider) {
       this.betSlider.addEventListener('input', () => {
-        const val = this.betSlider.value;
+        const val = parseInt(this.betSlider.value, 10);
         if (this.btnBetRaise) {
           const state = this.getCurrentState();
-          const me = state.players[this.localPlayerId];
-          const callDiff = (state.currentBet || 0) - (me ? me.currentRoundBet || 0 : 0);
-          this.btnBetRaise.textContent = callDiff > 0 ? `RAISE TO $${val}` : `BET $${val}`;
+          const me = state && state.players ? state.players[this.localPlayerId] : null;
+          if (me) {
+            const addedChips = Math.max(0, val - (me.currentRoundBet || 0));
+            const callDiff = (state.currentBet || 0) - (me.currentRoundBet || 0);
+            this.btnBetRaise.textContent = callDiff > 0 ? `RAISE TO $${val} (+$${addedChips})` : `BET $${val}`;
+          } else {
+            this.btnBetRaise.textContent = `BET $${val}`;
+          }
         }
       });
     }
@@ -1678,8 +1683,25 @@ class FamilyCardArcadeApp {
     if (this.btnBetRaise) {
       this.btnBetRaise.disabled = !isMyTurn || !canBet;
       if (me && this.betSlider) {
+        const bb = state.bigBlind || 20;
+        const minRaiseInc = state.minRaise || bb;
+        const minTargetBet = state.currentBet > 0 ? state.currentBet + minRaiseInc : bb;
+        const maxTargetBet = me.chips + (me.currentRoundBet || 0);
+
+        this.betSlider.min = minTargetBet;
+        this.betSlider.max = Math.max(minTargetBet, maxTargetBet);
+        this.betSlider.step = bb;
+        if (parseInt(this.betSlider.value, 10) < minTargetBet) {
+          this.betSlider.value = minTargetBet;
+        }
+        if (parseInt(this.betSlider.value, 10) > maxTargetBet) {
+          this.betSlider.value = maxTargetBet;
+        }
+
+        const targetVal = parseInt(this.betSlider.value, 10);
+        const addedChips = Math.max(0, targetVal - (me.currentRoundBet || 0));
         const callDiff = (state.currentBet || 0) - (me.currentRoundBet || 0);
-        this.btnBetRaise.textContent = callDiff > 0 ? `RAISE TO $${this.betSlider.value}` : `BET $${this.betSlider.value}`;
+        this.btnBetRaise.textContent = callDiff > 0 ? `RAISE TO $${targetVal} (+$${addedChips})` : `BET $${targetVal}`;
       }
     }
     if (this.btnAllIn) this.btnAllIn.disabled = !isMyTurn || !canBet;

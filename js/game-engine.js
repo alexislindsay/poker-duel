@@ -327,7 +327,8 @@ class GameEngine {
         }
 
         const actionName = (action === 'bet' && callDifference === 0) ? 'bet' : 'raised to';
-        this.lastAction = { playerId, action, amount: player.currentRoundBet, text: `${player.name} ${actionName} $${player.currentRoundBet}.` };
+        const extraNote = (action === 'bet' && callDifference === 0) ? '' : ` (+$${actualAdd})`;
+        this.lastAction = { playerId, action, amount: player.currentRoundBet, text: `${player.name} ${actionName} $${player.currentRoundBet}${extraNote}.` };
         this.onEvent({ type: 'PLAYER_RAISED', playerId, amount: player.currentRoundBet });
         break;
       }
