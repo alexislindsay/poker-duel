@@ -207,6 +207,7 @@ class FamilyCardArcadeApp {
     this.assistHandName = document.getElementById('assist-hand-name');
     this.meterSegments = document.querySelectorAll('.meter-segment');
     this.showdownBanner = document.getElementById('showdown-banner');
+    this.showdownTrophyIcon = document.getElementById('showdown-trophy-icon');
     this.showdownBannerTitle = document.getElementById('showdown-banner-title');
     this.showdownBannerDesc = document.getElementById('showdown-banner-desc');
     this.btnShowdownNext = document.getElementById('btn-showdown-next');
@@ -590,6 +591,13 @@ class FamilyCardArcadeApp {
         this.showdownBanner.style.display = 'none';
         if (this.isHost) {
           this.pokerEngine.startNewRound();
+        } else if (this.mode === 'ONLINE') {
+          if (this.firebaseRoom && this.firebaseRoom.roomCode) {
+            this.firebaseRoom.submitAction({ game: 'POKER_DUEL', action: 'next_round', playerId: this.localPlayerId });
+          }
+          if (this.network) {
+            this.network.send({ type: 'ACTION_REQUEST', game: 'POKER_DUEL', action: 'next_round', playerId: this.localPlayerId });
+          }
         }
       });
     }
@@ -1043,6 +1051,10 @@ class FamilyCardArcadeApp {
     if (game === 'POKER_DUEL' || this.activeGame === GAME_TYPES.POKER_DUEL) {
       if (action === 'draft') {
         this.pokerEngine.handleDraftDecision(playerId, decision);
+      } else if (action === 'next_round') {
+        if (this.isHost && this.pokerEngine.phase === 'ROUND_OVER') {
+          this.pokerEngine.startNewRound();
+        }
       } else {
         this.pokerEngine.handleBetAction(playerId, action, amount || 0);
       }
@@ -1609,8 +1621,27 @@ class FamilyCardArcadeApp {
     // Showdown Banner
     if (this.showdownBanner && state.phase === 'ROUND_OVER') {
       this.showdownBanner.style.display = 'flex';
-      if (this.showdownBannerTitle) this.showdownBannerTitle.textContent = `${state.winReason || 'Round Over'}`;
-      if (this.showdownBannerDesc) this.showdownBannerDesc.textContent = `Pot won: $${state.potWonAmount || 0}`;
+      const me = state.players ? state.players[this.localPlayerId] : null;
+      const amWinner = state.roundWinner && state.roundWinner.id === this.localPlayerId;
+      const amFolded = me && me.folded;
+
+      if (this.showdownTrophyIcon) {
+        this.showdownTrophyIcon.textContent = amWinner ? '🏆' : (amFolded ? '🏳️' : '🃏');
+      }
+      if (this.showdownBannerTitle) {
+        if (amWinner) {
+          this.showdownBannerTitle.textContent = state.winReason || 'YOU WON!';
+        } else if (amFolded) {
+          const winnerName = state.roundWinner ? state.roundWinner.name : 'Opponent';
+          this.showdownBannerTitle.textContent = `You Folded • ${winnerName} Wins`;
+        } else {
+          const winnerName = state.roundWinner ? state.roundWinner.name : 'Opponent';
+          this.showdownBannerTitle.textContent = `${winnerName} Wins the Hand`;
+        }
+      }
+      if (this.showdownBannerDesc) {
+        this.showdownBannerDesc.textContent = `Pot won: $${state.potWonAmount || 0}`;
+      }
     }
   }
 
