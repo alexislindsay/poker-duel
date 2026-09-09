@@ -1,4 +1,4 @@
-﻿# Poker Duel & Card Arena - Agent Workspace Instructions
+# Poker Duel & Card Arena - Agent Workspace Instructions
 
 This document provides persistent context, credentials, database IDs, and workflow protocols for AI agents interacting with this repository.
 
@@ -36,7 +36,17 @@ This document provides persistent context, credentials, database IDs, and workfl
   - `Status` (select): `Delivered`, `Active`, `Scheduled`, `Proposed`
   - `Component / Domain` (select): `Core Poker Engine`, `Expanded Games`, `AI & DadBot`, `Multiplayer & Networking`, `Audio & Visual Themes`, `Infrastructure & Quality`
   - `Target Version` (select): `v1.0 - Foundation`, `v1.1 - Multi-Game Suite`, `v1.2 - Polish & Resilience`, `v2.0 - Community & Expansions`
-  - `Scope & Deliverables` (rich_text)
+### C. QA Test Runs & Release Handoffs Board
+- **Database ID**: `3d60814c-194d-8172-9214-f2efbc907d59`
+- **Direct URL**: `https://app.notion.com/p/3d60814c194d81729214f2efbc907d59`
+- **Purpose**: Tracks release candidate builds, QA verification tasks, test verdicts, and sign-offs for merging to `main`.
+- **Properties**:
+  - `Release Candidate` (title)
+  - `Branch` (select): `testing`, `develop`, `main`
+  - `QA Status` (select): `Ready for QA`, `In Testing`, `Approved for Main`, `Needs Harmonization`, `Deployed to Production`
+  - `Commit SHA` (rich_text)
+  - `Priority Verification Items` (rich_text)
+  - `QA Tester Notes & Sign-Off` (rich_text)
 
 ---
 
