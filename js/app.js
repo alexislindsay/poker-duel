@@ -177,23 +177,22 @@ class FamilyCardArcadeApp {
     this.btnToggleCam = document.getElementById('btn-toggle-cam');
     this.btnAddBot = document.getElementById('btn-add-bot');
 
-    // Poker Action Controls
-    this.btnFold = document.getElementById('btn-fold');
-    this.btnCheckCall = document.getElementById('btn-check-call');
-    this.btnBetRaise = document.getElementById('btn-bet-raise');
-    this.btnAllIn = document.getElementById('btn-allin');
-    this.betSlider = document.getElementById('bet-slider');
-    this.actionControlsContainer = document.getElementById('action-controls');
+    // Standalone Encapsulated UI Controllers
+    this.draftController = (typeof DraftSpotlightController !== 'undefined')
+      ? new DraftSpotlightController({
+          onDecision: (decision) => this.handleLocalDraftDecision(decision)
+        })
+      : null;
 
-    // Drafting Spotlight
-    this.draftSpotlight = document.getElementById('draft-spotlight');
-    this.draftPrompt = document.getElementById('draft-prompt');
-    this.draftCardContainer = document.getElementById('draft-card-container');
-    this.draftActionButtons = document.getElementById('draft-action-buttons');
-    this.draftWaitingMessage = document.getElementById('draft-waiting-message');
-    this.draftWaitingText = document.getElementById('draft-waiting-text');
-    this.btnDraftKeep = document.getElementById('btn-draft-keep');
-    this.btnDraftDiscard = document.getElementById('btn-draft-discard');
+    this.bettingControls = (typeof BettingControlsController !== 'undefined')
+      ? new BettingControlsController({
+          onAction: (action, amount) => this.handleLocalPokerAction(action, amount),
+          getCurrentState: () => this.getCurrentState(),
+          getLocalPlayerId: () => this.localPlayerId
+        })
+      : null;
+
+    this.actionControlsContainer = document.getElementById('action-controls');
 
     // Table Areas
     this.mainTable = document.getElementById('main-table');
@@ -516,136 +515,7 @@ class FamilyCardArcadeApp {
       });
     }
 
-    // Poker Action Buttons
-    if (this.btnFold) {
-      this.btnFold.addEventListener('click', () => this.handleLocalPokerAction('fold'));
-    }
-    if (this.btnCheckCall) {
-      this.btnCheckCall.addEventListener('click', () => {
-        const state = this.getCurrentState();
-        const me = state.players[this.localPlayerId];
-        const callDiff = (state.currentBet || 0) - (me ? me.currentRoundBet || 0 : 0);
-        this.handleLocalPokerAction(callDiff > 0 ? 'call' : 'check');
-      });
-    }
-    if (this.btnBetRaise) {
-      this.btnBetRaise.addEventListener('click', () => {
-        const amount = parseInt(this.betSlider.value, 10);
-        this.handleLocalPokerAction('raise', amount);
-      });
-    }
-    if (this.btnAllIn) {
-      this.btnAllIn.addEventListener('click', () => this.handleLocalPokerAction('allin'));
-    }
-
-    if (this.betSlider) {
-      this.betSlider.addEventListener('input', () => {
-        const val = parseInt(this.betSlider.value, 10);
-        if (this.btnBetRaise) {
-          const state = this.getCurrentState();
-          const me = state && state.players ? state.players[this.localPlayerId] : null;
-          if (me) {
-            const callDiff = (state.currentBet || 0) - (me.currentRoundBet || 0);
-            if (callDiff > 0 && state.currentBet > 0) {
-              const raiseBy = val - state.currentBet;
-              this.btnBetRaise.textContent = `RAISE $${raiseBy}`;
-            } else {
-              this.btnBetRaise.textContent = `BET $${val}`;
-            }
-          } else {
-            this.btnBetRaise.textContent = `BET $${val}`;
-          }
-        }
-      });
-    }
-
-    // Bet Preset Chips
-    document.querySelectorAll('.preset-chip[data-val]').forEach(chip => {
-      chip.addEventListener('click', () => {
-        const type = chip.dataset.val;
-        const state = this.getCurrentState();
-        const me = state && state.players ? state.players[this.localPlayerId] : null;
-        if (!me) return;
-
-        const bb = state.bigBlind || 20;
-        const pot = state.pot || 0;
-        const minRaise = state.minRaise || bb;
-        const currentBet = state.currentBet || 0;
-        const minBet = currentBet > 0 ? currentBet + minRaise : bb;
-        const maxBet = me.chips + (me.currentRoundBet || 0);
-
-        let target = minBet;
-        if (type === 'min') target = minBet;
-        else if (type === '2bb') target = currentBet > 0 ? currentBet + (bb * 2) : bb * 2;
-        else if (type === '3bb') target = currentBet > 0 ? currentBet + (bb * 3) : bb * 3;
-        else if (type === 'pot') target = Math.max(minBet, currentBet + Math.max(bb, pot));
-        else if (type === 'max') target = maxBet;
-
-        target = Math.max(minBet, Math.min(maxBet, target));
-        if (this.betSlider) {
-          this.betSlider.value = target;
-          this.betSlider.dispatchEvent(new Event('input'));
-        }
-      });
-    });
-
-    // Draft Buttons
-    if (this.btnDraftKeep) {
-      this.btnDraftKeep.addEventListener('click', () => this.handleLocalDraftDecision('keep'));
-    }
-    if (this.btnDraftDiscard) {
-      this.btnDraftDiscard.addEventListener('click', () => this.handleLocalDraftDecision('discard'));
-    }
-
-    // Draft Spotlight — Drag to Move
-    const dragHandle = document.getElementById('draft-drag-handle');
-    const tray = this.draftSpotlight;
-    if (dragHandle && tray) {
-      let isDragging = false;
-      let startPointerX = 0, startPointerY = 0;
-      let startTrayX = 0, startTrayY = 0;
-
-      dragHandle.addEventListener('pointerdown', (e) => {
-        // Resolve current position from CSS (handles initial transform-based centering)
-        const rect = tray.getBoundingClientRect();
-        isDragging = true;
-        startPointerX = e.clientX;
-        startPointerY = e.clientY;
-        startTrayX = rect.left;
-        startTrayY = rect.top;
-
-        // Switch from transform-based centering to absolute coords
-        tray.style.transform = 'none';
-        tray.style.left = startTrayX + 'px';
-        tray.style.top  = startTrayY + 'px';
-
-        tray.classList.add('is-dragging');
-        dragHandle.setPointerCapture(e.pointerId);
-        e.preventDefault();
-      });
-
-      dragHandle.addEventListener('pointermove', (e) => {
-        if (!isDragging) return;
-        const dx = e.clientX - startPointerX;
-        const dy = e.clientY - startPointerY;
-        const trayRect = tray.getBoundingClientRect();
-        const maxX = window.innerWidth  - trayRect.width;
-        const maxY = window.innerHeight - trayRect.height;
-        const newX = Math.min(Math.max(0, startTrayX + dx), maxX);
-        const newY = Math.min(Math.max(0, startTrayY + dy), maxY);
-        tray.style.left = newX + 'px';
-        tray.style.top  = newY + 'px';
-        e.preventDefault();
-      });
-
-      const stopDrag = () => {
-        if (!isDragging) return;
-        isDragging = false;
-        tray.classList.remove('is-dragging');
-      };
-      dragHandle.addEventListener('pointerup',     stopDrag);
-      dragHandle.addEventListener('pointercancel', stopDrag);
-    }
+    // Poker Action & Draft UI interactions are cleanly handled by this.draftController and this.bettingControls
 
     // Showdown Next
     if (this.btnShowdownNext) {
@@ -1652,70 +1522,15 @@ class FamilyCardArcadeApp {
       }
     }
 
-    // Drafting Spotlight
-    if (this.draftSpotlight) {
-      if (state.phase === 'DRAFTING' && state.currentDrawnCard) {
-        this.draftSpotlight.style.display = 'flex';
-        const isMyDraft = (state.activeDraftPlayer === this.localPlayerId && !this.isSpectator);
-        const draftingPlayer = state.players ? state.players[state.activeDraftPlayer] : null;
-        const draftingPlayerName = draftingPlayer ? (draftingPlayer.name || `Player ${state.activeDraftPlayer + 1}`) : 'Opponent';
-
-        if (this.draftCardContainer) {
-          // Only the drafting player sees the card face-up. Opponents/spectators see it face-down.
-          this.draftCardContainer.innerHTML = createCardHTML(state.currentDrawnCard, !isMyDraft, this.currentTheme);
-        }
-        if (this.draftPrompt) {
-          this.draftPrompt.textContent = isMyDraft ? 'DRAFT TURN: KEEP OR DISCARD?' : `${draftingPlayerName.toUpperCase()}'S DRAFT TURN`;
-        }
-        if (this.draftActionButtons) this.draftActionButtons.style.display = isMyDraft ? 'flex' : 'none';
-        if (this.draftWaitingMessage) this.draftWaitingMessage.style.display = isMyDraft ? 'none' : 'flex';
-        if (this.draftWaitingText) this.draftWaitingText.textContent = `${draftingPlayerName} is deciding...`;
-      } else {
-        this.draftSpotlight.style.display = 'none';
-      }
+    // Drafting Spotlight (delegated to DraftSpotlightController)
+    if (this.draftController) {
+      this.draftController.render(state, this.localPlayerId, this.isSpectator, this.currentTheme);
     }
 
-    // Poker Action Buttons states
-    const isMyTurn = (state.activeTurnPlayer === this.localPlayerId && !this.isSpectator);
-    const canBet = (state.phase === 'PRE_DRAFT_BETTING' || state.phase === 'CARD_BETTING');
-
-    if (this.btnFold) this.btnFold.disabled = !isMyTurn || !canBet;
-    if (this.btnCheckCall) {
-      this.btnCheckCall.disabled = !isMyTurn || !canBet;
-      if (me) {
-        const callDiff = (state.currentBet || 0) - (me.currentRoundBet || 0);
-        this.btnCheckCall.textContent = callDiff > 0 ? `CALL $${callDiff}` : 'CHECK';
-      }
+    // Poker Action Buttons & Slider (delegated to BettingControlsController)
+    if (this.bettingControls) {
+      this.bettingControls.render(state, this.localPlayerId, this.isSpectator);
     }
-    if (this.btnBetRaise) {
-      this.btnBetRaise.disabled = !isMyTurn || !canBet;
-      if (me && this.betSlider) {
-        const bb = state.bigBlind || 20;
-        const minRaiseInc = state.minRaise || bb;
-        const minTargetBet = state.currentBet > 0 ? state.currentBet + minRaiseInc : bb;
-        const maxTargetBet = me.chips + (me.currentRoundBet || 0);
-
-        this.betSlider.min = minTargetBet;
-        this.betSlider.max = Math.max(minTargetBet, maxTargetBet);
-        this.betSlider.step = bb;
-        if (parseInt(this.betSlider.value, 10) < minTargetBet) {
-          this.betSlider.value = minTargetBet;
-        }
-        if (parseInt(this.betSlider.value, 10) > maxTargetBet) {
-          this.betSlider.value = maxTargetBet;
-        }
-
-        const targetVal = parseInt(this.betSlider.value, 10);
-        const callDiff = (state.currentBet || 0) - (me.currentRoundBet || 0);
-        if (callDiff > 0 && state.currentBet > 0) {
-          const raiseBy = targetVal - state.currentBet;
-          this.btnBetRaise.textContent = `RAISE $${raiseBy}`;
-        } else {
-          this.btnBetRaise.textContent = `BET $${targetVal}`;
-        }
-      }
-    }
-    if (this.btnAllIn) this.btnAllIn.disabled = !isMyTurn || !canBet;
 
     // Showdown Banner
     if (this.showdownBanner) {
@@ -1766,6 +1581,7 @@ class FamilyCardArcadeApp {
   }
 
   renderCrazy8Table(state) {
+    if (this.draftController) this.draftController.hide();
     if (this.showdownBanner) this.showdownBanner.style.display = 'none';
     if (this.pokerCommunityContainer) this.pokerCommunityContainer.style.display = 'none';
     if (this.handStrengthMeter) this.handStrengthMeter.style.display = 'none';
@@ -1851,6 +1667,7 @@ class FamilyCardArcadeApp {
   }
 
   renderSpadesTable(state) {
+    if (this.draftController) this.draftController.hide();
     if (this.showdownBanner) this.showdownBanner.style.display = 'none';
     if (this.pokerCommunityContainer) this.pokerCommunityContainer.style.display = 'none';
     if (this.handStrengthMeter) this.handStrengthMeter.style.display = 'none';
