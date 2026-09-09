@@ -73,8 +73,10 @@ class BettingControlsController {
         const pot = state.pot || 0;
         const minRaise = state.minRaise || bb;
         const currentBet = state.currentBet || 0;
-        const minBet = currentBet > 0 ? currentBet + minRaise : bb;
         const maxBet = me.chips + (me.currentRoundBet || 0);
+        if (maxBet <= currentBet) return; // Cannot raise
+
+        const minBet = Math.min(maxBet, currentBet > 0 ? currentBet + minRaise : bb);
 
         let target = minBet;
         if (type === 'min') target = minBet;
@@ -83,7 +85,8 @@ class BettingControlsController {
         else if (type === 'pot') target = Math.max(minBet, currentBet + Math.max(bb, pot));
         else if (type === 'max') target = maxBet;
 
-        target = Math.max(minBet, Math.min(maxBet, target));
+        // Strict clamp to never exceed maxBet:
+        target = Math.min(maxBet, Math.max(minBet, target));
         if (this.betSlider) {
           this.betSlider.value = target;
           this.updateRaiseButtonText();
@@ -101,9 +104,12 @@ class BettingControlsController {
     const me = state && state.players ? state.players[localId] : null;
 
     if (me && state) {
-      const callDiff = (state.currentBet || 0) - (me.currentRoundBet || 0);
-      if (callDiff > 0 && state.currentBet > 0) {
-        const raiseBy = val - state.currentBet;
+      const currentBet = state.currentBet || 0;
+      const totalStack = me.chips + (me.currentRoundBet || 0);
+      if (val >= totalStack && totalStack > currentBet) {
+        this.btnBetRaise.textContent = `ALL IN $${totalStack}`;
+      } else if (currentBet > 0) {
+        const raiseBy = val - currentBet;
         this.btnBetRaise.textContent = `RAISE $${raiseBy}`;
       } else {
         this.btnBetRaise.textContent = `BET $${val}`;
@@ -116,37 +122,51 @@ class BettingControlsController {
   render(state, localPlayerId, isSpectator = false) {
     if (!state) return;
 
-    const isMyTurn = (state.activeTurnPlayer === localPlayerId && !isSpectator);
-    const canBet = (state.phase === 'PRE_DRAFT_BETTING' || state.phase === 'CARD_BETTING');
     const me = state.players ? state.players[localPlayerId] : null;
+    const canPlayerAct = me && !me.folded && !me.isAllIn && me.chips > 0;
+    const isMyTurn = (state.activeTurnPlayer === localPlayerId && !isSpectator && canPlayerAct);
+    const canBet = (state.phase === 'PRE_DRAFT_BETTING' || state.phase === 'CARD_BETTING') && isMyTurn;
 
-    if (this.btnFold) this.btnFold.disabled = !isMyTurn || !canBet;
+    if (this.btnFold) this.btnFold.disabled = !canBet;
 
     if (this.btnCheckCall) {
-      this.btnCheckCall.disabled = !isMyTurn || !canBet;
+      this.btnCheckCall.disabled = !canBet;
       if (me) {
         const callDiff = (state.currentBet || 0) - (me.currentRoundBet || 0);
-        this.btnCheckCall.textContent = callDiff > 0 ? `CALL $${callDiff}` : 'CHECK';
+        if (callDiff > 0) {
+          const actualCall = Math.min(me.chips, callDiff);
+          this.btnCheckCall.textContent = (actualCall < callDiff || me.chips <= callDiff)
+            ? `CALL ALL-IN $${actualCall}`
+            : `CALL $${callDiff}`;
+        } else {
+          this.btnCheckCall.textContent = 'CHECK';
+        }
       }
     }
 
     if (this.btnBetRaise) {
-      this.btnBetRaise.disabled = !isMyTurn || !canBet;
-      if (me && this.betSlider) {
+      const currentBet = state.currentBet || 0;
+      const totalStack = me ? (me.chips + (me.currentRoundBet || 0)) : 0;
+      const canRaise = canBet && totalStack > currentBet;
+
+      this.btnBetRaise.disabled = !canRaise;
+
+      if (canRaise && this.betSlider) {
         const bb = state.bigBlind || 20;
         const minRaiseInc = state.minRaise || bb;
-        const minTargetBet = state.currentBet > 0 ? state.currentBet + minRaiseInc : bb;
-        const maxTargetBet = me.chips + (me.currentRoundBet || 0);
+        const nominalMin = currentBet > 0 ? currentBet + minRaiseInc : bb;
+        const sliderMin = Math.min(nominalMin, totalStack);
+        const sliderMax = totalStack;
 
-        this.betSlider.min = minTargetBet;
-        this.betSlider.max = Math.max(minTargetBet, maxTargetBet);
-        this.betSlider.step = bb;
+        this.betSlider.min = sliderMin;
+        this.betSlider.max = sliderMax;
+        this.betSlider.step = Math.min(bb, Math.max(1, sliderMax - sliderMin));
 
-        const currentVal = parseInt(this.betSlider.value, 10);
-        if (currentVal < minTargetBet) {
-          this.betSlider.value = minTargetBet;
-        } else if (currentVal > maxTargetBet) {
-          this.betSlider.value = maxTargetBet;
+        let currentVal = parseInt(this.betSlider.value, 10);
+        if (isNaN(currentVal) || currentVal < sliderMin) {
+          this.betSlider.value = sliderMin;
+        } else if (currentVal > sliderMax) {
+          this.betSlider.value = sliderMax;
         }
 
         this.updateRaiseButtonText();
@@ -154,7 +174,7 @@ class BettingControlsController {
     }
 
     if (this.btnAllIn) {
-      this.btnAllIn.disabled = !isMyTurn || !canBet;
+      this.btnAllIn.disabled = !canBet;
     }
   }
 }

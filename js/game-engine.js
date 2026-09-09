@@ -459,11 +459,29 @@ class GameEngine {
         boardLength: this.communityCards.length
       });
 
-      // After card is kept, trigger a CARD_BETTING round
-      this.phase = GAME_PHASES.CARD_BETTING;
-      this.resetRoundBets();
-      this.activeTurnPlayer = playerId; // Drafting player who kept card acts first
-      this.notifyState();
+      // After card is kept, only trigger CARD_BETTING if at least 2 non-folded players still have chips
+      const canBetPlayers = this.players.filter(p => !p.folded && !p.isAllIn && p.chips > 0);
+      if (canBetPlayers.length >= 2) {
+        this.phase = GAME_PHASES.CARD_BETTING;
+        this.resetRoundBets();
+        // If the drafting player who kept the card can bet, they act first; otherwise next active seat
+        this.activeTurnPlayer = (player && !player.folded && !player.isAllIn && player.chips > 0)
+          ? playerId
+          : this.getNextActiveSeat(playerId);
+        this.notifyState();
+      } else {
+        // All-in runout: no further betting is possible
+        this.resetRoundBets();
+        if (this.communityCards.length < 5) {
+          this.phase = GAME_PHASES.DRAFTING;
+          this.activeDraftPlayer = (this.activeDraftPlayer + 1) % this.players.length;
+          this.drawDraftCard();
+        } else {
+          this.phase = GAME_PHASES.SHOWDOWN;
+          this.resolveShowdown();
+          this.notifyState();
+        }
+      }
       return true;
     } else {
       // Discarded
