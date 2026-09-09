@@ -327,9 +327,9 @@ class GameEngine {
           this.betActedSet.clear(); // Reset others' action status
         }
 
-        const actionName = (action === 'bet' && callDifference === 0) ? 'bet' : 'raised to';
-        const extraNote = (action === 'bet' && callDifference === 0) ? '' : ` (+$${actualAdd})`;
-        this.lastAction = { playerId, action, amount: player.currentRoundBet, text: `${player.name} ${actionName} $${player.currentRoundBet}${extraNote}.` };
+        const actionName = (action === 'bet' && callDifference === 0) ? 'bet' : 'raised';
+        const displayAmount = (action === 'bet' && callDifference === 0) ? player.currentRoundBet : raiseIncrement;
+        this.lastAction = { playerId, action, amount: player.currentRoundBet, text: `${player.name} ${actionName} $${displayAmount}.` };
         this.onEvent({ type: 'PLAYER_RAISED', playerId, amount: player.currentRoundBet });
         break;
       }

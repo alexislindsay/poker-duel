@@ -545,9 +545,13 @@ class FamilyCardArcadeApp {
           const state = this.getCurrentState();
           const me = state && state.players ? state.players[this.localPlayerId] : null;
           if (me) {
-            const addedChips = Math.max(0, val - (me.currentRoundBet || 0));
             const callDiff = (state.currentBet || 0) - (me.currentRoundBet || 0);
-            this.btnBetRaise.textContent = callDiff > 0 ? `RAISE TO $${val} (+$${addedChips})` : `BET $${val}`;
+            if (callDiff > 0 && state.currentBet > 0) {
+              const raiseBy = val - state.currentBet;
+              this.btnBetRaise.textContent = `RAISE $${raiseBy}`;
+            } else {
+              this.btnBetRaise.textContent = `BET $${val}`;
+            }
           } else {
             this.btnBetRaise.textContent = `BET $${val}`;
           }
@@ -560,18 +564,21 @@ class FamilyCardArcadeApp {
       chip.addEventListener('click', () => {
         const type = chip.dataset.val;
         const state = this.getCurrentState();
-        const me = state.players[this.localPlayerId];
+        const me = state && state.players ? state.players[this.localPlayerId] : null;
         if (!me) return;
 
         const bb = state.bigBlind || 20;
         const pot = state.pot || 0;
-        const minBet = state.currentBet > 0 ? state.currentBet + bb : bb;
+        const minRaise = state.minRaise || bb;
+        const currentBet = state.currentBet || 0;
+        const minBet = currentBet > 0 ? currentBet + minRaise : bb;
         const maxBet = me.chips + (me.currentRoundBet || 0);
 
         let target = minBet;
-        if (type === '2bb') target = bb * 2;
-        else if (type === '3bb') target = bb * 3;
-        else if (type === 'pot') target = Math.max(minBet, pot);
+        if (type === 'min') target = minBet;
+        else if (type === '2bb') target = currentBet > 0 ? currentBet + (bb * 2) : bb * 2;
+        else if (type === '3bb') target = currentBet > 0 ? currentBet + (bb * 3) : bb * 3;
+        else if (type === 'pot') target = Math.max(minBet, currentBet + Math.max(bb, pot));
         else if (type === 'max') target = maxBet;
 
         target = Math.max(minBet, Math.min(maxBet, target));
@@ -1699,9 +1706,13 @@ class FamilyCardArcadeApp {
         }
 
         const targetVal = parseInt(this.betSlider.value, 10);
-        const addedChips = Math.max(0, targetVal - (me.currentRoundBet || 0));
         const callDiff = (state.currentBet || 0) - (me.currentRoundBet || 0);
-        this.btnBetRaise.textContent = callDiff > 0 ? `RAISE TO $${targetVal} (+$${addedChips})` : `BET $${targetVal}`;
+        if (callDiff > 0 && state.currentBet > 0) {
+          const raiseBy = targetVal - state.currentBet;
+          this.btnBetRaise.textContent = `RAISE $${raiseBy}`;
+        } else {
+          this.btnBetRaise.textContent = `BET $${targetVal}`;
+        }
       }
     }
     if (this.btnAllIn) this.btnAllIn.disabled = !isMyTurn || !canBet;
