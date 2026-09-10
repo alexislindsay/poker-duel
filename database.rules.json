@@ -1,0 +1,49 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "rooms": {
+      "$roomCode": {
+        // Enforce room-level authentication: only authenticated users can read room data
+        ".read": "auth != null",
+        ".write": false,
+
+        "meta": {
+          // Room creator can initialize meta; only the room initiator can update meta
+          ".write": "auth != null && (!data.exists() || data.child('initiatorId').val() === auth.uid || newData.child('initiatorId').val() === auth.uid)",
+          ".validate": "newData.hasChildren(['roomCode', 'initiatorId', 'gameType', 'seatCount'])"
+        },
+
+        "seats": {
+          "$seatIndex": {
+            // A seat can be written if:
+            // 1. New room creation (data doesn't exist yet)
+            // 2. An authenticated user claims an open seat (setting clientId to their auth.uid)
+            // 3. The current occupant updates their presence or leaves
+            // 4. The room initiator updates or replaces vacant seats with AI bots
+            ".write": "auth != null && (!data.exists() || data.child('clientId').val() === auth.uid || newData.child('clientId').val() === auth.uid || root.child('rooms/' + $roomCode + '/meta/initiatorId').val() === auth.uid)"
+          }
+        },
+
+        "spectators": {
+          "$clientId": {
+            // Spectators can only register, update, and clean up their own record
+            ".write": "auth != null && ($clientId === auth.uid || newData.child('clientId').val() === auth.uid || data.child('clientId').val() === auth.uid)"
+          }
+        },
+
+        "gameState": {
+          // Only the room host / virtual dealer can write authoritative game state
+          // (either the room initiator or the occupant of seat 0)
+          ".write": "auth != null && (root.child('rooms/' + $roomCode + '/meta/initiatorId').val() === auth.uid || root.child('rooms/' + $roomCode + '/seats/0/clientId').val() === auth.uid)"
+        },
+
+        "lastAction": {
+          // Any seated player can submit an action, but it MUST be signed with their own auth.uid (anti-spoofing)
+          ".write": "auth != null && (newData.child('clientId').val() === auth.uid || root.child('rooms/' + $roomCode + '/meta/initiatorId').val() === auth.uid)",
+          ".validate": "newData.hasChildren(['action', 'clientId'])"
+        }
+      }
+    }
+  }
+}

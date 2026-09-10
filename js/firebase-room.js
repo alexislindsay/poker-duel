@@ -63,9 +63,46 @@ class FirebaseRoomManager {
       }
       this.db = firebase.database();
       console.log('[Firebase] Realtime Database ready.');
+
+      // Initialize Firebase Auth (Anonymous Authentication)
+      if (typeof firebase.auth === 'function') {
+        this.auth = firebase.auth();
+        this.auth.onAuthStateChanged((user) => {
+          if (user) {
+            this.clientId = user.uid;
+            sessionStorage.setItem('card_arcadia_client_id', user.uid);
+            console.log(`[Firebase Auth] Anonymous player authenticated: ${user.uid}`);
+          }
+        });
+        this.auth.signInAnonymously().catch(err => {
+          console.warn('[Firebase Auth] Anonymous sign-in notice (falling back to local client ID):', err.message);
+        });
+      }
     } catch (err) {
       console.error('[Firebase] Init error:', err);
     }
+  }
+
+  // Ensure user is authenticated anonymously before room operations
+  async ensureAuth() {
+    if (this.auth) {
+      if (this.auth.currentUser) {
+        this.clientId = this.auth.currentUser.uid;
+        sessionStorage.setItem('card_arcadia_client_id', this.clientId);
+        return this.clientId;
+      }
+      try {
+        const cred = await this.withTimeout(this.auth.signInAnonymously(), 4000, 'Auth timeout');
+        if (cred && cred.user) {
+          this.clientId = cred.user.uid;
+          sessionStorage.setItem('card_arcadia_client_id', this.clientId);
+          return this.clientId;
+        }
+      } catch (err) {
+        console.warn('[Firebase Auth] ensureAuth notice:', err.message);
+      }
+    }
+    return this.clientId;
   }
 
   // Promise timeout helper
@@ -89,6 +126,7 @@ class FirebaseRoomManager {
   // Create a new room with Virtual Dealer state
   async createRoom(customCode = null, options = {}) {
     const db = this.ensureDb();
+    await this.ensureAuth();
     this.roomCode = (customCode || FirebaseRoomManager.generateRoomCode()).toUpperCase().trim().replace(/[^A-Z0-9]/g, '');
     this.mySeatIndex = 0;
     this.myRole = 'player';
@@ -155,6 +193,7 @@ class FirebaseRoomManager {
   // Join an existing room atomically via transaction
   async joinRoom(roomCode, playerName = 'Player 2', asSpectator = false, preferredSeat = null) {
     const db = this.ensureDb();
+    await this.ensureAuth();
     this.roomCode = (roomCode || '').toUpperCase().trim().replace(/[^A-Z0-9]/g, '');
     this.localName = playerName;
     this.myRole = asSpectator ? 'spectator' : 'player';
