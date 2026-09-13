@@ -6,7 +6,7 @@
       "$roomCode": {
         // Enforce room-level authentication: only authenticated users can read room data
         ".read": "auth != null",
-        ".write": false,
+        ".write": "auth != null && (!data.exists() || data.child('meta/initiatorId').val() === auth.uid)",
 
         "meta": {
           // Room creator can initialize meta; only the room initiator can update meta

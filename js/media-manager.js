@@ -303,6 +303,22 @@ class MediaManager {
     if (!videoEl) return;
 
     try {
+      // Ensure this stream is not already attached to any other DOM seat (prevent multi-pod ghost feeds)
+      for (let s = 0; s < 4; s++) {
+        if (s !== domSeat) {
+          const otherVid = document.getElementById(`player-video-${s}`);
+          if (otherVid && otherVid.srcObject === stream) {
+            console.log(`[AV] Detaching duplicate stream from DOM seat ${s}`);
+            otherVid.srcObject = null;
+            otherVid.style.display = 'none';
+            const otherPod = document.getElementById(`pod-seat-${s}`);
+            if (otherPod) otherPod.classList.remove('has-video');
+            const otherAvatar = document.getElementById(`pod-avatar-${s}`);
+            if (otherAvatar) otherAvatar.classList.remove('avatar-video-active');
+          }
+        }
+      }
+
       videoEl.srcObject = stream;
       const isSelf = (seatIndex === this.mySeatIndex) || (domSeat === 0);
       videoEl.muted = isSelf ? true : isMuted; // Strictly mute self to prevent echo/feedback, unmute remote players
