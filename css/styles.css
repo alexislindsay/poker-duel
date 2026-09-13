@@ -237,6 +237,21 @@ html, body {
   display: flex;
   gap: 5px;
   align-items: center;
+  justify-content: center;
+  max-width: 100%;
+}
+
+.poker-card-wrapper {
+  display: inline-flex;
+  position: relative;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.poker-card-wrapper:hover,
+.poker-card-wrapper:focus-within {
+  z-index: 15;
+  transform: translateY(-4px);
 }
 
 /* Poker Cards */
@@ -952,29 +967,81 @@ html, body {
    MOBILE PORTRAIT SPECIFIC OPTIMIZATIONS (<= 600px)
    ========================================================= */
 @media (max-width: 600px) {
+  :root {
+    --card-width: clamp(40px, 12vw, 52px);
+    --card-height: clamp(58px, 17vw, 76px);
+  }
+
   .poker-table {
     border-width: 5px;
     border-radius: 28px;
-    padding: 6px 6px;
+    padding: 4px 6px;
   }
 
   .player-pod {
-    gap: 6px;
+    gap: 4px;
+    width: 100%;
+  }
+
+  .player-pod.pod-bottom {
+    flex-direction: column-reverse;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+  }
+
+  .player-pod.pod-top {
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
   }
 
   .player-info-card {
-    min-width: 110px;
-    padding: 3px 8px;
+    min-width: 95px;
+    padding: 2px 8px;
     gap: 6px;
+    font-size: 0.75rem;
   }
 
   .player-avatar {
-    width: 28px;
-    height: 28px;
-    font-size: 0.95rem;
+    width: 26px;
+    height: 26px;
+    font-size: 0.88rem;
   }
 
-  .player-name { font-size: 0.75rem; }
+  .player-name { font-size: 0.72rem; }
+  .player-chips { font-size: 0.72rem; }
+
+  .community-slots-row {
+    gap: clamp(2px, 1vw, 4px);
+    padding: 3px 4px;
+    justify-content: center;
+  }
+
+  .cards-row {
+    justify-content: center;
+    max-width: 100%;
+  }
+
+  /* Multi-card hand fanning for games like Crazy 8s & Spades (4+ cards) */
+  .cards-row:has(> :nth-child(4)) {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 4px 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .cards-row:has(> :nth-child(4))::-webkit-scrollbar {
+    display: none;
+  }
+  .cards-row:has(> :nth-child(4)) > * + * {
+    margin-left: -14px;
+  }
+  .cards-row:has(> :nth-child(7)) > * + * {
+    margin-left: -22px;
+  }
+
   .draft-spotlight-tray {
     top: 13%;
     padding: 6px 10px;
@@ -1268,8 +1335,34 @@ html, body {
 }
 
 /* =========================================================================
-   4-PLAYER TABLE & WEBRTC VIDEO/VOICE AV STYLES
+   TABLE LAYOUTS (2P, 3P, 4P) & WEBRTC VIDEO/VOICE AV STYLES
    ========================================================================= */
+
+.poker-table.table-layout-2p {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "top"
+    "center"
+    "bottom";
+  align-items: center;
+  justify-items: center;
+  gap: 4px;
+}
+
+.poker-table.table-layout-3p {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(80px, 130px) 1fr;
+  grid-template-areas:
+    "top top"
+    "left center"
+    "bottom bottom";
+  align-items: center;
+  justify-items: center;
+  gap: 4px;
+}
 
 .poker-table.table-layout-4p {
   display: grid;
@@ -1382,13 +1475,21 @@ html, body {
 .badge-spectator { background: #a855f7; color: white; }
 
 @media (max-width: 600px) {
+  .poker-table.table-layout-2p {
+    grid-template-columns: 1fr;
+    padding: 4px 6px;
+  }
+  .poker-table.table-layout-3p {
+    grid-template-columns: minmax(65px, 80px) 1fr;
+    padding: 4px 6px;
+  }
   .poker-table.table-layout-4p {
-    grid-template-columns: minmax(70px, 90px) 1fr minmax(70px, 90px);
+    grid-template-columns: minmax(65px, 80px) 1fr minmax(65px, 80px);
     padding: 4px 6px;
   }
   .player-info-card {
-    min-width: 100px;
-    padding: 3px 6px;
+    min-width: 95px;
+    padding: 2px 6px;
     font-size: 0.75rem;
   }
   .player-avatar-wrapper {
