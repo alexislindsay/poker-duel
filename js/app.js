@@ -119,6 +119,12 @@ class FamilyCardArcadeApp {
     const podLeft = document.getElementById('pod-seat-1');
     const podTop = document.getElementById('pod-seat-2');
     const podRight = document.getElementById('pod-seat-3');
+    const mainTable = document.getElementById('main-table');
+
+    if (mainTable) {
+      mainTable.classList.remove('table-layout-2p', 'table-layout-3p', 'table-layout-4p');
+      mainTable.classList.add(`table-layout-${this.seatCount}p`);
+    }
 
     if (this.seatCount === 2) {
       if (podLeft) podLeft.style.display = 'none';
@@ -251,6 +257,8 @@ class FamilyCardArcadeApp {
     this.playerLeftDesc = document.getElementById('player-left-desc');
     this.btnReplaceAi = document.getElementById('btn-replace-ai');
     this.btnPlayerLeftLeave = document.getElementById('btn-player-left-leave');
+
+    this.updateTableLayoutPods();
   }
 
   bindEvents() {
@@ -1476,10 +1484,10 @@ class FamilyCardArcadeApp {
 
       if (betBadgeEl) {
         if (p.currentRoundBet > 0) {
-          betBadgeEl.style.visibility = 'visible';
+          betBadgeEl.style.display = 'inline-block';
           betBadgeEl.textContent = `Bet: $${p.currentRoundBet}`;
         } else {
-          betBadgeEl.style.visibility = 'hidden';
+          betBadgeEl.style.display = 'none';
         }
       }
 
@@ -1642,6 +1650,9 @@ class FamilyCardArcadeApp {
       if (chipsEl) chipsEl.textContent = `🎴 ${p.cardCount} cards`;
       if (infoCardEl) infoCardEl.classList.toggle('active-turn', state.activePlayerId === p.id);
 
+      const betBadgeEl = document.getElementById(`bet-badge-${domSeatIndex}`);
+      if (betBadgeEl) betBadgeEl.style.display = 'none';
+
       if (cardsEl) {
         cardsEl.innerHTML = (p.hand || []).map(c => {
           const isValid = isSelf && (state.activePlayerId === this.localPlayerId) && this.crazy8Engine.isValidPlay(c);
@@ -1720,6 +1731,9 @@ class FamilyCardArcadeApp {
       if (nameEl) nameEl.textContent = displayName;
       if (chipsEl) chipsEl.textContent = `Bid: ${p.bid !== null ? p.bid : '-'} | Tricks: ${p.tricksWon}`;
       if (infoCardEl) infoCardEl.classList.toggle('active-turn', state.activePlayerId === p.id);
+
+      const betBadgeEl = document.getElementById(`bet-badge-${domSeatIndex}`);
+      if (betBadgeEl) betBadgeEl.style.display = 'none';
 
       if (cardsEl) {
         const isSelf = (p.id === this.localPlayerId && !this.isSpectator);
