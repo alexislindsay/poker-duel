@@ -283,22 +283,52 @@ class NetworkManager {
       let assignedRole = requestedRole;
 
       if (requestedRole === 'player') {
-        const occupiedSeats = new Set();
-        this.peerInfoMap.forEach(info => {
-          if (info.role === 'player' && info.seatIndex !== null) {
-            occupiedSeats.add(info.seatIndex);
+        // If client requested a preferred seat or reconnecting with existing seat/name, clean up stale peer on that seat
+        if (meta.preferredSeat !== null && meta.preferredSeat !== undefined && meta.preferredSeat > 0 && meta.preferredSeat < this.maxPlayers) {
+          for (const [existingPeerId, info] of this.peerInfoMap.entries()) {
+            if (info.seatIndex === meta.preferredSeat && existingPeerId !== conn.peer) {
+              console.log(`[P2P Host] Replacing stale peer ${existingPeerId} on seat ${meta.preferredSeat} with ${conn.peer}`);
+              this.peerInfoMap.delete(existingPeerId);
+              const oldConn = this.connections.get(existingPeerId);
+              if (oldConn) {
+                try { oldConn.close(); } catch (e) {}
+                this.connections.delete(existingPeerId);
+              }
+            }
           }
-        });
-
-        // Check if client requested their previously assigned seat (reconnect)
-        if (meta.preferredSeat !== null && meta.preferredSeat !== undefined && !occupiedSeats.has(meta.preferredSeat) && meta.preferredSeat > 0 && meta.preferredSeat < this.maxPlayers) {
           assignedSeat = meta.preferredSeat;
         } else {
-          // Find next open seat 1, 2, 3
-          for (let s = 1; s < this.maxPlayers; s++) {
-            if (!occupiedSeats.has(s)) {
-              assignedSeat = s;
-              break;
+          // Check if an existing peer shares the same player name (reconnect / duplicate handshake)
+          if (meta.name) {
+            for (const [existingPeerId, info] of this.peerInfoMap.entries()) {
+              if (info.name === meta.name && existingPeerId !== conn.peer && info.seatIndex !== null) {
+                console.log(`[P2P Host] Reconnecting player ${meta.name} on seat ${info.seatIndex}, replacing ${existingPeerId}`);
+                assignedSeat = info.seatIndex;
+                this.peerInfoMap.delete(existingPeerId);
+                const oldConn = this.connections.get(existingPeerId);
+                if (oldConn) {
+                  try { oldConn.close(); } catch (e) {}
+                  this.connections.delete(existingPeerId);
+                }
+                break;
+              }
+            }
+          }
+
+          if (assignedSeat === null) {
+            const occupiedSeats = new Set();
+            this.peerInfoMap.forEach(info => {
+              if (info.role === 'player' && info.seatIndex !== null) {
+                occupiedSeats.add(info.seatIndex);
+              }
+            });
+
+            // Find next open seat 1, 2, 3
+            for (let s = 1; s < this.maxPlayers; s++) {
+              if (!occupiedSeats.has(s)) {
+                assignedSeat = s;
+                break;
+              }
             }
           }
         }
@@ -311,7 +341,7 @@ class NetworkManager {
 
       const clientInfo = {
         peerId: conn.peer,
-        name: meta.name || `Player ${this.peerInfoMap.size + 1}`,
+        name: meta.name || (assignedSeat !== null ? `Player ${assignedSeat + 1}` : 'Spectator'),
         role: assignedRole,
         seatIndex: assignedSeat
       };
@@ -511,7 +541,15 @@ class NetworkManager {
   }
 
   getRoster() {
-    return Array.from(this.peerInfoMap.values());
+    const map = new Map();
+    this.peerInfoMap.forEach(info => {
+      if (info.role === 'player' && info.seatIndex !== null && info.seatIndex !== undefined) {
+        map.set(`seat_${info.seatIndex}`, info);
+      } else {
+        map.set(`peer_${info.peerId}`, info);
+      }
+    });
+    return Array.from(map.values());
   }
 
   getPlayers() {

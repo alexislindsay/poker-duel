@@ -105,6 +105,23 @@ class FamilyCardArcadeApp {
     this.crazy8Engine.setPlayerCount(this.seatCount);
     this.spadesEngine.setPlayerCount(this.seatCount);
 
+    if (this.mode === 'ONLINE') {
+      const roster = (this.firebaseRoom && this.firebaseRoom.roster && this.firebaseRoom.roster.length > 0)
+        ? this.firebaseRoom.roster
+        : (this.network ? this.network.getRoster() : []);
+      if (roster && roster.length > 0) {
+        if (this.pokerEngine && this.pokerEngine.configureMultiplayerPlayers) {
+          this.pokerEngine.configureMultiplayerPlayers(roster);
+        }
+        if (this.crazy8Engine && this.crazy8Engine.configureMultiplayerPlayers) {
+          this.crazy8Engine.configureMultiplayerPlayers(roster);
+        }
+        if (this.spadesEngine && this.spadesEngine.configureMultiplayerPlayers) {
+          this.spadesEngine.configureMultiplayerPlayers(roster);
+        }
+      }
+    }
+
     // Update Seat buttons in lobby
     document.querySelectorAll('.seat-btn').forEach(btn => {
       btn.classList.toggle('active', parseInt(btn.dataset.seats, 10) === this.seatCount);
@@ -707,13 +724,14 @@ class FamilyCardArcadeApp {
 
       // Initialize AV peer
       try {
-        if (this.isHost) {
-          await this.network.createRoom(roomCode, 'Player 1');
-          this.media.attachPeer(this.network.peer, 0, false);
-        } else {
-          await this.network.joinRoom(roomCode, `Player ${this.localPlayerId + 1}`, asSpectator, this.localPlayerId);
-          this.media.attachPeer(this.network.peer, this.localPlayerId, asSpectator);
+        if (!this.network.roomId) {
+          if (this.isHost) {
+            await this.network.createRoom(roomCode, 'Player 1');
+          } else {
+            await this.network.joinRoom(roomCode, `Player ${this.localPlayerId + 1}`, asSpectator, this.localPlayerId);
+          }
         }
+        this.media.attachPeer(this.network.peer, this.localPlayerId, asSpectator);
       } catch (peerErr) {
         console.warn('[AV Peer] Notice on restore:', peerErr);
       }
@@ -822,7 +840,9 @@ class FamilyCardArcadeApp {
 
       // 2. Initialize P2P Peer for AV Video & Voice Mesh
       try {
-        await this.network.createRoom(code, 'Player 1');
+        if (!this.network.roomId) {
+          code = await this.network.createRoom(code, 'Player 1');
+        }
         this.media.attachPeer(this.network.peer, 0, false);
       } catch (peerErr) {
         console.warn('[AV Peer] Notice:', peerErr);
@@ -878,7 +898,9 @@ class FamilyCardArcadeApp {
 
       // 2. Initialize P2P Peer for AV Video & Voice Mesh
       try {
-        await this.network.joinRoom(roomId, asSpectator ? 'Spectator' : `Player ${this.localPlayerId + 1}`, asSpectator, this.localPlayerId);
+        if (!this.network.roomId) {
+          await this.network.joinRoom(roomId, asSpectator ? 'Spectator' : `Player ${this.localPlayerId + 1}`, asSpectator, this.localPlayerId);
+        }
         this.media.attachPeer(this.network.peer, this.localPlayerId, asSpectator);
       } catch (peerErr) {
         console.warn('[AV Peer] Notice:', peerErr);
@@ -1119,6 +1141,19 @@ class FamilyCardArcadeApp {
         }
       }
     });
+
+    // Continuous roster synchronization into game engines for accurate seat mapping and human player status
+    if (this.mode === 'ONLINE' && list.length > 0) {
+      if (this.pokerEngine && this.pokerEngine.configureMultiplayerPlayers) {
+        this.pokerEngine.configureMultiplayerPlayers(list);
+      }
+      if (this.crazy8Engine && this.crazy8Engine.configureMultiplayerPlayers) {
+        this.crazy8Engine.configureMultiplayerPlayers(list);
+      }
+      if (this.spadesEngine && this.spadesEngine.configureMultiplayerPlayers) {
+        this.spadesEngine.configureMultiplayerPlayers(list);
+      }
+    }
 
     const activeSeats = list.filter(p => p.role === 'player' && p.seatIndex !== null).length;
     if (activeSeats >= 2) {
@@ -1453,8 +1488,16 @@ class FamilyCardArcadeApp {
 
     // Render Players Pods with Local Seat Perspective
     const players = state.players || [];
+    const activeDomSeats = new Set();
+
     players.forEach((p) => {
       const domSeatIndex = this.getDomSeatIndex(p.id, players.length);
+      activeDomSeats.add(domSeatIndex);
+
+      const podEl = document.getElementById(`pod-seat-${domSeatIndex}`);
+      if (podEl && domSeatIndex > 0) {
+        podEl.style.display = 'flex';
+      }
 
       const nameEl = document.getElementById(`player-name-${domSeatIndex}`);
       const chipsEl = document.getElementById(`player-chips-${domSeatIndex}`);
@@ -1473,7 +1516,9 @@ class FamilyCardArcadeApp {
       if (isSelf) {
         displayName = 'You';
       } else {
-        if (p.isAi) {
+        if (this.mode === 'ONLINE' && !p.isAi) {
+          displayName = (p.name === 'You' || p.name === 'DadBot') ? `Player ${p.id + 1}` : p.name;
+        } else if (p.isAi) {
           displayName = p.name;
         } else {
           displayName = (p.name === 'You' || p.name === 'DadBot') ? `Player ${p.id + 1}` : p.name;
@@ -1505,6 +1550,14 @@ class FamilyCardArcadeApp {
         }).join('');
       }
     });
+
+    // Cleanly hide any DOM pods not occupied in this match layout
+    for (let s = 1; s <= 3; s++) {
+      if (!activeDomSeats.has(s)) {
+        const inactivePod = document.getElementById(`pod-seat-${s}`);
+        if (inactivePod) inactivePod.style.display = 'none';
+      }
+    }
 
     // Update Real-Time Hand Assist HUD for Local Player
     const me = players[this.localPlayerId];
