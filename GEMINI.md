@@ -6,7 +6,7 @@ This document provides persistent context, credentials, database IDs, and workfl
 
 ## 1. Notion Integration & Token
 
-- **Notion Integration Token**: `ntn_p21692480771Wi3C5uhECNhEFPNUFZIvMsxZ0rQC3ovdAa`
+- **Notion Integration Token**: [REDACTED]
 - **Notion API Version**: `2022-06-28`
 - **API Base URL**: `https://api.notion.com/v1`
 
@@ -55,7 +55,7 @@ This document provides persistent context, credentials, database IDs, and workfl
 ### Query Glitches
 ```powershell
 $headers = @{
-    "Authorization" = "Bearer ntn_p21692480771Wi3C5uhECNhEFPNUFZIvMsxZ0rQC3ovdAa"
+    "Authorization" = "Bearer [REDACTED]"
     "Notion-Version" = "2022-06-28"
     "Content-Type" = "application/json"
 }
@@ -66,7 +66,7 @@ $res.results | ForEach-Object { [PSCustomObject]@{ Title = $_.properties.'Glitch
 ### Query Master Roadmap
 ```powershell
 $headers = @{
-    "Authorization" = "Bearer ntn_p21692480771Wi3C5uhECNhEFPNUFZIvMsxZ0rQC3ovdAa"
+    "Authorization" = "Bearer [REDACTED]"
     "Notion-Version" = "2022-06-28"
     "Content-Type" = "application/json"
 }
