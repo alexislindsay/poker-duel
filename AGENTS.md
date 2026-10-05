@@ -1,4 +1,4 @@
-# Poker Duel & Card Arena - Agent Workspace Instructions
+﻿# Poker Duel & Card Arena - Agent Workspace Instructions
 
 This document provides persistent context, credentials, database IDs, and workflow protocols for AI agents interacting with this repository.
 
@@ -6,7 +6,7 @@ This document provides persistent context, credentials, database IDs, and workfl
 
 ## 1. Notion Integration & Token
 
-- **Notion Integration Token**: `ntn_p21692480771Wi3C5uhECNhEFPNUFZIvMsxZ0rQC3ovdAa`
+- **Notion Integration Token**: `[REDACTED_NOTION_TOKEN]`
 - **Notion API Version**: `2022-06-28`
 - **API Base URL**: `https://api.notion.com/v1`
 
@@ -65,7 +65,7 @@ This document provides persistent context, credentials, database IDs, and workfl
 ### Query Glitches
 ```powershell
 $headers = @{
-    "Authorization" = "Bearer ntn_p21692480771Wi3C5uhECNhEFPNUFZIvMsxZ0rQC3ovdAa"
+    "Authorization" = "Bearer [REDACTED_NOTION_TOKEN]"
     "Notion-Version" = "2022-06-28"
     "Content-Type" = "application/json"
 }
@@ -76,10 +76,37 @@ $res.results | ForEach-Object { [PSCustomObject]@{ Title = $_.properties.'Glitch
 ### Query Master Roadmap
 ```powershell
 $headers = @{
-    "Authorization" = "Bearer ntn_p21692480771Wi3C5uhECNhEFPNUFZIvMsxZ0rQC3ovdAa"
+    "Authorization" = "Bearer [REDACTED_NOTION_TOKEN]"
     "Notion-Version" = "2022-06-28"
     "Content-Type" = "application/json"
 }
 $res = Invoke-RestMethod -Uri "https://api.notion.com/v1/databases/3d40814c-194d-81da-a640-c3025f778704/query" -Method Post -Headers $headers -Body "{}"
 $res.results | ForEach-Object { [PSCustomObject]@{ Milestone = $_.properties.'Milestone / Feature'.title[0].plain_text; Phase = $_.properties.'Phase / Horizon'.select.name; Status = $_.properties.Status.select.name } }
 ```
+
+---
+
+## 5. Autonomous Engineering Standards
+
+### Modular Architecture & Encapsulation
+- **Single Responsibility**: Never create monolithic or "God" classes/files.
+- **File Size Constraints**:
+  - *Target*: Keep source code files under 250 lines.
+  - *Tolerance*: A 20% buffer (up to 300 lines maximum) is permitted only when breaking a file apart would introduce artificial fragmentation or harm readability.
+  - *Hard Ceiling*: Files exceeding 300 lines must be refactored and extracted into sub-components, helper utilities, or dedicated service modules before proceeding.
+- **Separation of Concerns**: Maintain strict boundaries between UI components, state management, and core game/domain logic.
+
+### Project Tracking & Notion Integration
+- When initiating any new application or major feature, establish a tracking page/entry in Notion.
+- Outline the initial module architecture, milestones, and task checklists before writing implementation code, and update status as milestones clear.
+
+### Version Control & Persistence
+- Commit and push working changes incrementally upon completing any self-contained module, bug fix, or refactor.
+- Ensure the working tree is clean and pushed before concluding a task session.
+
+### Global Security & Secret Containment Directive
+- **Zero-Exposure Mandate**: Agents must never commit, push, or write active credentials into any version-controlled space, public or private.
+- **Credential Definition**: This applies to all authentication strings, including Notion integration tokens, GitHub Personal Access Tokens (PATs), API keys, database URIs, and OAuth secrets.
+- **Strict Isolation**: All active credentials must remain localized entirely within .env files or a designated secure environment variable manager. Before executing any Git commit, agents must independently verify that the .env file is explicitly listed in .gitignore.
+- **Placeholder Substitution**: When generating setup instructions, documentation, or rule files (e.g., inside .agents/rules/), agents must proactively replace all real tokens with generic syntax (e.g., [REDACTED_NOTION_TOKEN]).
+
